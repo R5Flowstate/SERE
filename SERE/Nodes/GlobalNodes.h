@@ -2,221 +2,92 @@
 
 #include "RuiNodeEditor/RuiNodeEditor.h"
 
-
-class TimeNode : public RuiBaseNode
-{
-public:
-	static inline std::string name = "Current Time";
-	static inline std::string category = "Globals";
-
-	explicit TimeNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit TimeNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-	void draw() override;
-	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override;
-	void Export(RuiExportPrototype& proto) override;
-
-	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+// Macro for simple float global nodes
+#define DECLARE_FLOAT_GLOBAL_NODE(ClassName, NodeName) \
+class ClassName : public RuiBaseNode { \
+public: \
+	static inline std::string name = NodeName; \
+	static inline std::string category = "Globals"; \
+	explicit ClassName(RenderInstance& prot, ImFlow::StyleManager& styles); \
+	explicit ClassName(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj); \
+	void draw() override; \
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override; \
+	void Export(RuiExportPrototype& proto) override; \
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo(); \
 };
 
-class ADSFracNode : public RuiBaseNode
-{
-public:
-	static inline std::string name = "ADS Fraction";
-	static inline std::string category = "Globals";
-
-	explicit ADSFracNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit ADSFracNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-	void draw() override;
-	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override;
-	void Export(RuiExportPrototype& proto) override;
-
-	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+// Macro for simple int global nodes
+#define DECLARE_INT_GLOBAL_NODE(ClassName, NodeName) \
+class ClassName : public RuiBaseNode { \
+public: \
+	static inline std::string name = NodeName; \
+	static inline std::string category = "Globals"; \
+	explicit ClassName(RenderInstance& prot, ImFlow::StyleManager& styles); \
+	explicit ClassName(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj); \
+	void draw() override; \
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override; \
+	void Export(RuiExportPrototype& proto) override; \
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo(); \
 };
 
-
-class LocalPlayerPosNode : public RuiBaseNode
-{
-public:
-	static inline std::string name = "Local Player Position";
-	static inline std::string category = "Globals";
-
-	explicit LocalPlayerPosNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit LocalPlayerPosNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-	void draw() override;
-	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override;
-	void Export(RuiExportPrototype& proto) override;
-
-	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
-private:
-	float minVal;
-	float maxVal;
+// Macro for Vector3 global nodes
+#define DECLARE_VEC3_GLOBAL_NODE(ClassName, NodeName) \
+class ClassName : public RuiBaseNode { \
+public: \
+	static inline std::string name = NodeName; \
+	static inline std::string category = "Globals"; \
+	explicit ClassName(RenderInstance& prot, ImFlow::StyleManager& styles); \
+	explicit ClassName(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj); \
+	void draw() override; \
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override; \
+	void Export(RuiExportPrototype& proto) override; \
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo(); \
+private: \
+	float minVal; \
+	float maxVal; \
 };
 
-class ScreenWidthNode : public RuiBaseNode
-{
-public:
-	static inline std::string name = "Screen Width";
-	static inline std::string category = "Globals";
+// --- Time ---
+DECLARE_FLOAT_GLOBAL_NODE(TimeNode, "Current Time")
+DECLARE_FLOAT_GLOBAL_NODE(UiTimeNode, "UI Time")
 
-	explicit ScreenWidthNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit ScreenWidthNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-	void draw() override;
-	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override;
-	void Export(RuiExportPrototype& proto) override;
+// --- Viewport ---
+DECLARE_FLOAT_GLOBAL_NODE(ScreenWidthNode, "Screen Width")
+DECLARE_FLOAT_GLOBAL_NODE(ScreenHeightNode, "Screen Height")
 
-	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
-private:
-	float minVal;
-	float maxVal;
-};
+// --- Camera ---
+DECLARE_VEC3_GLOBAL_NODE(LocalPlayerPosNode, "Player Position")
+DECLARE_VEC3_GLOBAL_NODE(CamOrgLocalNode, "Camera Local Pos")
 
-class ScreenHeightNode : public RuiBaseNode
-{
-public:
-	static inline std::string name = "Screen Height";
-	static inline std::string category = "Globals";
+// --- Player State (float) ---
+DECLARE_FLOAT_GLOBAL_NODE(ADSFracNode, "ADS Fraction")
+DECLARE_FLOAT_GLOBAL_NODE(CrosshairADSFracNode, "Crosshair ADS Frac")
 
-	explicit ScreenHeightNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit ScreenHeightNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-	void draw() override;
-	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override;
-	void Export(RuiExportPrototype& proto) override;
+// --- Player State (int → float for node compat) ---
+DECLARE_FLOAT_GLOBAL_NODE(IsAliveNode, "Player Is Alive")
+DECLARE_FLOAT_GLOBAL_NODE(IsSpectatorNode, "Player Is Spectator")
+DECLARE_FLOAT_GLOBAL_NODE(IsViewingDeathScreenNode, "Viewing Death Screen")
+DECLARE_FLOAT_GLOBAL_NODE(IsThirdPersonNode, "Is Third Person")
+DECLARE_FLOAT_GLOBAL_NODE(IsPhaseShiftedNode, "Is Phase Shifted")
+DECLARE_FLOAT_GLOBAL_NODE(IsUsingControllerNode, "Is Using Controller")
+DECLARE_FLOAT_GLOBAL_NODE(HasOpenMenuNode, "Has Open Menu")
+DECLARE_FLOAT_GLOBAL_NODE(IsOneHandedNode, "Is One Handed")
+DECLARE_FLOAT_GLOBAL_NODE(SniperScopeEquippedNode, "Sniper Scope Equipped")
+DECLARE_FLOAT_GLOBAL_NODE(IsDrivingHoverVehicleNode, "Driving Hover Vehicle")
+DECLARE_FLOAT_GLOBAL_NODE(IsPureSpectatorNode, "Is Pure Spectator")
 
-	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
-private:
-	float minVal;
-	float maxVal;
-};
+// --- Kill Replay ---
+DECLARE_FLOAT_GLOBAL_NODE(KillReplayIsWatchingNode, "Kill Replay Active")
+DECLARE_FLOAT_GLOBAL_NODE(KillReplayChangeTimeNode, "Kill Replay Change Time")
 
+// --- Game State ---
+DECLARE_FLOAT_GLOBAL_NODE(AnnouncementIsActiveNode, "Announcement Active")
+DECLARE_FLOAT_GLOBAL_NODE(AnnouncementChangeTimeNode, "Announcement Change Time")
+DECLARE_VEC3_GLOBAL_NODE(FriendlyTeamColorNode, "Friendly Team Color")
+DECLARE_VEC3_GLOBAL_NODE(EnemyTeamColorNode, "Enemy Team Color")
+DECLARE_VEC3_GLOBAL_NODE(PartyTeamColorNode, "Party Team Color")
 
-
-class BoolGlobalNode : public RuiBaseNode
-{
-public:
-	void draw() override;
-	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override;
-	void Export(RuiExportPrototype& proto) override;
-
-	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
-
-protected:
-	BoolGlobalNode(const std::string& nodeName, int Globals::* localField, const std::string& exportField,
-		RenderInstance& prot, ImFlow::StyleManager& styles);
-
-private:
-	std::string nodeName;
-	std::string exportField;
-	int Globals::* localField;
-};
-
-class IsKillReplayNode : public BoolGlobalNode
-{
-public:
-	static inline std::string name = "Is Kill Replay";
-	static inline std::string category = "Globals";
-
-	explicit IsKillReplayNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit IsKillReplayNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-};
-
-class IsUsingControllerNode : public BoolGlobalNode
-{
-public:
-	static inline std::string name = "Is Using Controller";
-	static inline std::string category = "Globals";
-
-	explicit IsUsingControllerNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit IsUsingControllerNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-};
-
-class IsAliveNode : public BoolGlobalNode
-{
-public:
-	static inline std::string name = "Is Alive";
-	static inline std::string category = "Globals";
-
-	explicit IsAliveNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit IsAliveNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-};
-
-class IsSpectatingNode : public BoolGlobalNode
-{
-public:
-	static inline std::string name = "Is Spectating";
-	static inline std::string category = "Globals";
-
-	explicit IsSpectatingNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit IsSpectatingNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-};
-
-class IsMenuOpenNode : public BoolGlobalNode
-{
-public:
-	static inline std::string name = "Is Menu Open";
-	static inline std::string category = "Globals";
-
-	explicit IsMenuOpenNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit IsMenuOpenNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-};
-
-class IsPhaseShiftedNode : public BoolGlobalNode
-{
-public:
-	static inline std::string name = "Is Phase Shifted";
-	static inline std::string category = "Globals";
-
-	explicit IsPhaseShiftedNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit IsPhaseShiftedNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-};
-
-
-
-class ColorGlobalNode : public RuiBaseNode
-{
-public:
-	void draw() override;
-	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) override;
-	void Export(RuiExportPrototype& proto) override;
-
-	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
-
-protected:
-	ColorGlobalNode(const std::string& nodeName, float (Globals::* localField)[3], const std::string& exportField,
-		RenderInstance& prot, ImFlow::StyleManager& styles);
-
-private:
-	std::string nodeName;
-	std::string exportField;
-	float (Globals::* localField)[3];
-};
-
-class FriendlyTeamColorNode : public ColorGlobalNode
-{
-public:
-	static inline std::string name = "Friendly Team Color";
-	static inline std::string category = "Globals";
-	explicit FriendlyTeamColorNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit FriendlyTeamColorNode(RenderInstance& prot, ImFlow::StyleManager& styles, rapidjson::GenericObject<false, rapidjson::Value> obj);
-};
-
-class EnemyTeamColorNode : public ColorGlobalNode
-{
-public:
-	static inline std::string name = "Enemy Team Color";
-	static inline std::string category = "Globals";
-	explicit EnemyTeamColorNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit EnemyTeamColorNode(RenderInstance& prot, ImFlow::StyleManager& styles,
-		rapidjson::GenericObject<false, rapidjson::Value> obj);
-};
-
-class PartyTeamColorNode : public ColorGlobalNode
-{
-public:
-	static inline std::string name = "Party Team Color";
-	static inline std::string category = "Globals";
-	explicit PartyTeamColorNode(RenderInstance& prot, ImFlow::StyleManager& styles);
-	explicit PartyTeamColorNode(RenderInstance& prot, ImFlow::StyleManager& styles,
-		rapidjson::GenericObject<false, rapidjson::Value> obj);
-};
+// --- Misc ---
+DECLARE_FLOAT_GLOBAL_NODE(NxModeNode, "NX Mode")
 
 void AddGlobalNodes(NodeEditor& editor);

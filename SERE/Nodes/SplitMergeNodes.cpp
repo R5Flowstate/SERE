@@ -1,11 +1,4 @@
 #include "SplitMergeNodes.h"
-#include <immintrin.h>
-
-#define extract_f32(v, idx) \
-    ((idx) == 0 ? _mm_cvtss_f32(v) : \
-     (idx) == 1 ? _mm_cvtss_f32(_mm_shuffle_ps((v), (v), _MM_SHUFFLE(1, 1, 1, 1))) : \
-     (idx) == 2 ? _mm_cvtss_f32(_mm_shuffle_ps((v), (v), _MM_SHUFFLE(2, 2, 2, 2))) : \
-                  _mm_cvtss_f32(_mm_shuffle_ps((v), (v), _MM_SHUFFLE(3, 3, 3, 3))))
 
 SplitFloat2Node::SplitFloat2Node(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
 	std::string nameX = Variable::UniqueName();
@@ -253,7 +246,7 @@ void MergeFloat3Node::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,
 }
 
 void MergeFloat3Node::Export(RuiExportPrototype& proto) {
-	const auto& out = getOut<Float3Variable>("Out")->val();
+	const auto& out = getOut<Float2Variable>("Out")->val();
 	const auto& x = getInNumeric("X");
 	const auto& y = getInNumeric("Y");
 	const auto& z = getInNumeric("Z");
@@ -275,7 +268,12 @@ void MergeFloat3Node::Export(RuiExportPrototype& proto) {
 }
 
 void MergeFloat3Node::draw() {
-
+	const FloatVariable& inX = getInNumeric("X");
+	const FloatVariable& inY = getInNumeric("Y");
+	const FloatVariable& inZ = getInNumeric("Z");
+	ImGui::Text("%f",inX.value);
+	ImGui::Text("%f",inY.value);
+	ImGui::Text("%f",inZ.value);
 }
 
 std::vector<std::shared_ptr<ImFlow::PinProto>> MergeFloat3Node::GetPinInfo() {
@@ -321,6 +319,11 @@ SplitColorNode::SplitColorNode(RenderInstance& rend,ImFlow::StyleManager& style)
 SplitColorNode::SplitColorNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):SplitColorNode(rend,style){}
 
 void SplitColorNode::draw() {
+	const ColorVariable& col = getInVal<ColorVariable>("In");
+	ImGui::Text("%f",col.value.red);
+	ImGui::Text("%f",col.value.green);
+	ImGui::Text("%f",col.value.blue);
+	ImGui::Text("%f",col.value.alpha);
 }
 
 void SplitColorNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
@@ -347,7 +350,7 @@ void SplitColorNode::Export(RuiExportPrototype& proto) {
 		if(in.IsConstant())
 			proto.codeLines.push_back(std::format("{} {} = {};",typeName,r.GetFormattedName(proto), in.value.red));
 		else
-			proto.codeLines.push_back(std::format("{} {} = {}.red;",typeName,r.GetFormattedName(proto), in.GetFormattedName(proto)));
+			proto.codeLines.push_back(std::format("{} {} = {}.red",typeName,r.GetFormattedName(proto), in.GetFormattedName(proto)));
 	};
 	proto.codeElements.push_back(ele);
 	ele.identifier = g.name;
@@ -357,7 +360,7 @@ void SplitColorNode::Export(RuiExportPrototype& proto) {
 		if(in.IsConstant())
 			proto.codeLines.push_back(std::format("{} {} = {};",typeName,g.GetFormattedName(proto), in.value.green));
 		else
-			proto.codeLines.push_back(std::format("{} {} = {}.green;",typeName,g.GetFormattedName(proto), in.GetFormattedName(proto)));
+			proto.codeLines.push_back(std::format("{} {} = {}.green",typeName,g.GetFormattedName(proto), in.GetFormattedName(proto)));
 	};
 	proto.codeElements.push_back(ele);
 	ele.identifier = b.name;
@@ -367,7 +370,7 @@ void SplitColorNode::Export(RuiExportPrototype& proto) {
 		if(in.IsConstant())
 			proto.codeLines.push_back(std::format("{} {} = {};",typeName,b.GetFormattedName(proto), in.value.blue));
 		else
-			proto.codeLines.push_back(std::format("{} {} = {}.blue;",typeName,b.GetFormattedName(proto), in.GetFormattedName(proto)));
+			proto.codeLines.push_back(std::format("{} {} = {}.blue",typeName,b.GetFormattedName(proto), in.GetFormattedName(proto)));
 	};
 	proto.codeElements.push_back(ele);
 	ele.identifier = a.name;
@@ -377,7 +380,7 @@ void SplitColorNode::Export(RuiExportPrototype& proto) {
 		if(in.IsConstant())
 			proto.codeLines.push_back(std::format("{} {} = {};",typeName,a.GetFormattedName(proto), in.value.alpha));
 		else
-			proto.codeLines.push_back(std::format("{} {} = {}.alpha;",typeName,a.GetFormattedName(proto), in.GetFormattedName(proto)));
+			proto.codeLines.push_back(std::format("{} {} = {}.alpha",typeName,a.GetFormattedName(proto), in.GetFormattedName(proto)));
 	};
 	proto.codeElements.push_back(ele);
 }
@@ -408,7 +411,14 @@ RGBToColorNode::RGBToColorNode(RenderInstance& rend,ImFlow::StyleManager& style)
 RGBToColorNode::RGBToColorNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):RGBToColorNode(rend,style){}
 
 void RGBToColorNode::draw() {
-
+	const FloatVariable& inRed = getInNumeric("Red");
+	const FloatVariable& inGreen = getInNumeric("Green");
+	const FloatVariable& inBlue = getInNumeric("Blue");
+	const FloatVariable& inAlpha = getInNumeric("Alpha");
+	ImGui::Text("%f",inRed.value);
+	ImGui::Text("%f",inGreen.value);
+	ImGui::Text("%f",inBlue.value);
+	ImGui::Text("%f",inAlpha.value);
 }
 
 void RGBToColorNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
@@ -545,7 +555,14 @@ HSVToColorNode::HSVToColorNode(RenderInstance& rend,ImFlow::StyleManager& style)
 HSVToColorNode::HSVToColorNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):HSVToColorNode(rend,style){}
 
 void HSVToColorNode::draw() {
-
+	const FloatVariable& inRed = getInNumeric("Hue");
+	const FloatVariable& inGreen = getInNumeric("Saturation");
+	const FloatVariable& inBlue = getInNumeric("Vibrance");
+	const FloatVariable& inAlpha = getInNumeric("Alpha");
+	ImGui::Text("%f",inRed.value);
+	ImGui::Text("%f",inGreen.value);
+	ImGui::Text("%f",inBlue.value);
+	ImGui::Text("%f",inAlpha.value);
 }
 
 void HSVToColorNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
@@ -606,35 +623,38 @@ SplitTransformSizeNode::SplitTransformSizeNode(RenderInstance& rend, ImFlow::Sty
 	std::string name = Variable::UniqueName();
 	getOut<FloatVariable>("X")->behaviour([this, name]() {
 		const TransformSize& in = getInVal<TransformSize>("In");
-		return FloatVariable(_mm_cvtss_f32(in.size), name);
+		return FloatVariable(in.size.m128_f32[0], name);
 		});
 
 	name = Variable::UniqueName();
 	getOut<FloatVariable>("Y")->behaviour([this, name]() {
 		const TransformSize& in = getInVal<TransformSize>("In");
-		__m128 shuf = _mm_shuffle_ps(in.size,in.size,_MM_SHUFFLE(1,1,1,1));
-		return FloatVariable(_mm_cvtss_f32(shuf), name);
-	});
+		return FloatVariable(in.size.m128_f32[1], name);
+		});
 
 	name = Variable::UniqueName();
 	getOut<FloatVariable>("Z")->behaviour([this, name]() {
 		const TransformSize& in = getInVal<TransformSize>("In");
-		__m128 shuf = _mm_shuffle_ps(in.size,in.size,_MM_SHUFFLE(2,2,2,2));
-		return FloatVariable(_mm_cvtss_f32(shuf), name);
-	});
+		return FloatVariable(in.size.m128_f32[2], name);
+		});
 
 	name = Variable::UniqueName();
 	getOut<FloatVariable>("W")->behaviour([this, name]() {
 		const TransformSize& in = getInVal<TransformSize>("In");
-		__m128 shuf = _mm_shuffle_ps(in.size,in.size,_MM_SHUFFLE(3,3,3,3));
-		return FloatVariable(_mm_cvtss_f32(shuf), name);
-	});
+		return FloatVariable(in.size.m128_f32[3], name);
+		});
 }
 
 
 SplitTransformSizeNode::SplitTransformSizeNode(RenderInstance& rend, ImFlow::StyleManager& style, rapidjson::GenericObject<false, rapidjson::Value> obj) :SplitTransformSizeNode(rend, style) {}
 
 void SplitTransformSizeNode::draw() {
+	const TransformSize& in = getInVal<TransformSize>("In");
+
+	ImGui::Text("X: %f", in.size.m128_f32[0]);
+	ImGui::Text("Y: %f", in.size.m128_f32[1]);
+	ImGui::Text("Z: %f", in.size.m128_f32[2]);
+	ImGui::Text("W: %f", in.size.m128_f32[3]);
 
 }
 
@@ -651,7 +671,7 @@ void SplitTransformSizeNode::Export(RuiExportPrototype& proto) {
 		ele.callback = [in, var, idx](RuiExportPrototype& proto) {
 			std::string typeName = proto.varsInDataStruct.contains(var.name) ? "" : "float";
 			if (in.IsConstant())
-				proto.codeLines.push_back(std::format("{} {} = {};", typeName, var.GetFormattedName(proto), extract_f32(in.size, idx)));
+				proto.codeLines.push_back(std::format("{} {} = {};", typeName, var.GetFormattedName(proto), in.size.m128_f32[idx]));
 			else
 				proto.codeLines.push_back(std::format("{} {} = {}.m128_f32[{}];", typeName, var.GetFormattedName(proto), in.GetFormattedName(proto), idx));
 			};
@@ -684,12 +704,13 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> SplitTransformSizeNode::GetPinInf
 MergeTransformSizeNode::MergeTransformSizeNode(RenderInstance& rend, ImFlow::StyleManager& style)
 	: RuiBaseNode(name, category, GetPinInfo(), rend, style)
 {
-	std::string name = Variable::UniqueName();
-	getOut<TransformSize>("Out")->behaviour([this,name]() {
+	getOut<TransformSize>("Out")->behaviour([this]() {
 		const FloatVariable& inX = getInNumeric("X");
 		const FloatVariable& inY = getInNumeric("Y");
 		const FloatVariable& inZ = getInNumeric("Z");
 		const FloatVariable& inW = getInNumeric("W");
+
+		std::string name = (inX.IsConstant() && inY.IsConstant() && inZ.IsConstant() && inW.IsConstant()) ? "" : Variable::UniqueName();
 
 		__m128 vec = _mm_set_ps(inW.value, inZ.value, inY.value, inX.value); // highest first
 		return TransformSize(vec, name);
@@ -701,7 +722,15 @@ MergeTransformSizeNode::MergeTransformSizeNode(RenderInstance& rend, ImFlow::Sty
 }
 
 void MergeTransformSizeNode::draw() {
+	const FloatVariable& inX = getInNumeric("X");
+	const FloatVariable& inY = getInNumeric("Y");
+	const FloatVariable& inZ = getInNumeric("Z");
+	const FloatVariable& inW = getInNumeric("W");
 
+	ImGui::Text("%f", inX.value);
+	ImGui::Text("%f", inY.value);
+	ImGui::Text("%f", inZ.value);
+	ImGui::Text("%f", inW.value);
 }
 
 void MergeTransformSizeNode::Export(RuiExportPrototype& proto) {

@@ -149,6 +149,25 @@ private:
 	bool showSelectionUi;
 };
 
+// Feeds an image slot the engine sentinel -4 (UI_IMGREFIDX_SCREENBLUR), which makes
+// the widget sample the blurred backbuffer instead of an atlas image.
+class ScreenBlurNode : public RuiBaseNode
+{
+public:
+	static inline std::string name = "Screen Blur";
+	static inline std::string category = "Constant";
+
+	explicit ScreenBlurNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit ScreenBlurNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+private:
+	uint32_t hash;
+};
+
 class SizeVarNode : public RuiBaseNode
 {
 public:

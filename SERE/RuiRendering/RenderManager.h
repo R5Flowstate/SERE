@@ -2,7 +2,6 @@
 
 
 #include <fstream>
-#include <algorithm>
 #include <map>
 #include <string>
 #include <any>
@@ -11,8 +10,8 @@
 class RenderInstance;
 
 #define IMGUI_DEFINE_MATH_OPERATORS
-#include "Imgui/imgui.h"
-//#include "IntTypes.h"
+#include "imgui/imgui.h"
+#include "intTypes.h"
 #include "FontAtlas.h"
 #include "ImageAtlas.h"
 #include "ShaderStructs.h"
@@ -96,9 +95,9 @@ struct TransformResult {
 
 struct RenderQuad
 {
-    __m128 UvBase;
     __m128 xUvVector;
     __m128 yUvVector;
+    __m128 UvBase;
     __m128 m128_30;
     __m128 m128_40;
     __m128 m128_50;
@@ -112,21 +111,31 @@ struct RenderQuad
 
 struct Globals {
     float currentTime = 0.f;
+    float uiTime = 0.f;
     float adsFracValue = 0.f;
-    float localPlayerPos[3];
+    float crosshairADSFrac = 0.f;
+    float localPlayerPos[3] = {};
     float screenWidth = 0.f;
     float screenHeight = 0.f;
-    float friendlyTeamColor[3] = { 0.34f, 0.59f, 0.86f };
-    float enemyTeamColor[3] = { 0.8f, 0.25f, 0.15f };
-    float partyTeamColor[3] = { 0.7f, 1.f, 0.8f };
-    int isKillReplay = 0;
-    int isUsingController = 0;
-    int isAlive = 0;
-    int isSpectating = 0;
-    int isMenuOpen = 0;
+    int isAlive = 1;
+    int isSpectator = 0;
+    int isViewingDeathScreen = 0;
+    int isThirdPerson = 0;
     int isPhaseShifted = 0;
-    float announcementTime = 0.f;
-    int isAnnoncementActive = 0;
+    int isUsingController = 0;
+    int hasOpenMenu = 0;
+    int isOneHanded = 0;
+    int sniperScopeEquipped = 0;
+    int isDrivingHoverVehicle = 0;
+    int isPureSpectator = 0;
+    int killReplayIsWatching = 0;
+    float killReplayChangeTime = 0.f;
+    int announcementIsActive = 0;
+    float announcementChangeTime = 0.f;
+    float friendlyTeamColor[3] = {0.2f, 0.5f, 1.0f};
+    float enemyTeamColor[3] = {1.0f, 0.3f, 0.2f};
+    float partyTeamColor[3] = {0.3f, 1.0f, 0.3f};
+    int nxMode = 0;
 };
 class RenderInstance;
 
@@ -158,7 +167,6 @@ public:
     float elementHeight;
     float elementWidthRpc;
     float elementHeightRpc;
-    float previewZoom = 1.0f;
 
     void AddImageAtlasSegment(ImageAtlas* atlas) {
         if (segments.size() == 0) {
@@ -222,6 +230,7 @@ public:
     void sub_FFAE0(__m128 a1,__m128 a2, __m128* a3);
 
 
+
     void StartFrame(float time);
     void EndFrame();
 
@@ -247,7 +256,6 @@ public:
         drawInfo.ruiUnk3[0].float_24 = 0.f;
         drawInfo.ruiUnk3[0].float_28 = 0.f;
         drawInfo.ruiUnk3[0].float_2C = 1.f;
-        previewZoom = 1.0f;
     }
 
     RenderInstance(float width, float height) {
@@ -256,26 +264,9 @@ public:
 
     void DrawImage() {
         ImGui::Begin("Render Image");
-
-        constexpr float minZoom = 1.0f;
-        constexpr float maxZoom = 16.0f;
-
-        if (ImGui::IsWindowHovered() && ImGui::GetIO().MouseWheel != 0.0f) {
-            previewZoom = std::clamp(previewZoom + ImGui::GetIO().MouseWheel * 0.25f, minZoom, maxZoom);
-        }
-
         float width = ImGui::GetWindowWidth();
         width -= 10; //margin
-        width *= previewZoom;
         ImGui::Image(g_renderFramework->GetRuiView(), ImVec2(width, elementHeight / elementWidth * width), ImVec2(0, 0), ImVec2(1, 1));
-        if (previewZoom > minZoom &&
-            ImGui::IsItemHovered() &&
-            (ImGui::IsMouseDragging(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Middle))) {
-            const ImVec2 dragDelta = ImGui::GetIO().MouseDelta;
-            ImGui::SetScrollX(ImGui::GetScrollX() - dragDelta.x);
-            ImGui::SetScrollY(ImGui::GetScrollY() - dragDelta.y);
-        }
-
         ImGui::End();
     }
 };

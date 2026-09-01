@@ -86,3 +86,51 @@ public:
 	int layer;
 };
 
+class VideoRenderNode : public RuiBaseNode {
+public:
+	static inline std::string name = "Render Video";
+	static inline std::string category = "Image Render";
+
+	explicit VideoRenderNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit VideoRenderNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+	int layer;
+	int opts;
+};
+
+class CameraRenderNode : public RuiBaseNode {
+public:
+	static inline std::string name = "Render Camera";
+	static inline std::string category = "Image Render";
+
+	explicit CameraRenderNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit CameraRenderNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+	int layer;
+	int opts;
+};
+
+class NestedRenderNode : public RuiBaseNode {
+public:
+	static inline std::string name = "Render Nested";
+	static inline std::string category = "Image Render";
+
+	explicit NestedRenderNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit NestedRenderNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+	int layer;
+	int opts;
+};
+

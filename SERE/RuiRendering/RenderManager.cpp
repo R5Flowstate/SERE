@@ -24,16 +24,13 @@ void RenderInstance::AddQuad(RenderQuad& quad) {
 		__m128 a = _mm_add_ps(
 			_mm_add_ps(_mm_mul_ps(quad.xUvVector, v18), _mm_mul_ps(v19, quad.yUvVector)),
 			quad.UvBase);
-		// ruiVertex.float_18[0] = a.m128_f32[0];
-		// ruiVertex.float_18[1] = a.m128_f32[1];
-		// ruiVertex.float_18[2] = a.m128_f32[2];
-		// ruiVertex.float_18[3] = a.m128_f32[3];
-		_mm_storeu_ps(ruiVertex.float_18,a);
+		ruiVertex.float_18[0] = a.m128_f32[0];
+		ruiVertex.float_18[1] = a.m128_f32[1];
+		ruiVertex.float_18[2] = a.m128_f32[2];
+		ruiVertex.float_18[3] = a.m128_f32[3];
 		__m128 b = quad.m128_50;
-		float bStore[4];
-		_mm_storeu_ps(bStore, b);
-		ruiVertex.float_28[0] = bStore[0];
-		ruiVertex.float_28[1] = bStore[1];
+		ruiVertex.float_28[0] = b.m128_f32[0];
+		ruiVertex.float_28[1] = b.m128_f32[1];
 		ruiVertex.assetIndex = quad.assetIndex;
 		ruiVertex.assetIndex2 = quad.assetIndex2;
 		ruiVertex.word_34 = quad.styleDescriptorIndex;
@@ -44,112 +41,104 @@ void RenderInstance::AddQuad(RenderQuad& quad) {
 }
 
 
-void RenderInstance::sub_FEF30( __m128 *a3, __m128 *a4, TriData& a5)
+void __fastcall RenderInstance::sub_FEF30( __m128 *a3, __m128 *a4, TriData& a5)
 {
-	const __m128 v10 = _mm_set1_ps(drawInfo.ruiUnk3[0].float_10);
-	const __m128 v11 = _mm_set1_ps(drawInfo.ruiUnk3[0].screenHeight);
-	const __m128 v12 = _mm_set1_ps(drawInfo.ruiUnk3[0].float_18);
-	const __m128 v13 = _mm_set1_ps(drawInfo.ruiUnk3[0].screenWidth);
-	const __m128 v14 = _mm_set1_ps(drawInfo.ruiUnk3[0].float_4);
-	const __m128 v15 = _mm_set1_ps(drawInfo.ruiUnk3[0].float_8);
-	const __m128 v16 = _mm_add_ps(
-		_mm_add_ps(_mm_set1_ps(drawInfo.float_10), _mm_mul_ps(v13, a5.a)),
-		_mm_mul_ps(v10, a5.b));
-	const __m128 v17 = _mm_add_ps(
-		_mm_add_ps(_mm_set1_ps(drawInfo.float_14), _mm_mul_ps(v14, a5.a)),
-		_mm_mul_ps(v11, a5.b));
-	const __m128 v72 = _mm_add_ps(
-		_mm_add_ps(_mm_set1_ps(drawInfo.float_18), _mm_mul_ps(v15, a5.a)),
-		_mm_mul_ps(v12, a5.b));
 
-	const __m128 v19 = _mm_shuffle_ps(*a4, *a4, _MM_SHUFFLE(1, 1, 0, 0));
-	const __m128 v20 = _mm_shuffle_ps(*a4, *a4, _MM_SHUFFLE(2, 3, 3, 2));
-	const __m128 v84 = a3[0];
-	const __m128 v82 = a3[2];
-	const __m128 v25 = _mm_add_ps(_mm_mul_ps(v84, v19), _mm_mul_ps(v82, v20));
-	const __m128 v26 = _mm_mul_ps(a3[1], v19);
-	const __m128 v30 = _mm_mul_ps(a3[3], v20);
-	const __m128 v32 = _mm_add_ps(v26, v30);
-	const __m128 v33 = _mm_mul_ps(v12, v32);
-	const __m128 v77 = _mm_add_ps(_mm_mul_ps(v13, v25), _mm_mul_ps(v10, v32));
-	const __m128 v73 = _mm_add_ps(_mm_mul_ps(v15, v25), v33);
-	const __m128 v36 = _mm_mul_ps(v11, v32);
-	const __m128 v37 = _mm_mul_ps(v14, v25);
-	const __m128 v74 = _mm_add_ps(v37, v36);
 
-	const __m128 v27 = _mm_setzero_ps();
-	const __m128 v40 = _mm_setzero_ps();
-	const __m128 v41 = _mm_setzero_ps();
-	const __m128 v47 = _mm_add_ps(
-		_mm_add_ps(_mm_add_ps(_mm_mul_ps(v17, v41), _mm_mul_ps(v16, v40)), _mm_mul_ps(v72, v27)),
-		_mm_set1_ps(1.0f));
-	const __m128 v52 = _mm_add_ps(_mm_add_ps(_mm_mul_ps(v74, v41), _mm_mul_ps(v77, v40)), _mm_mul_ps(v73, v27));
+	__m128 unk3Float_10; // xmm10
+	__m128 unk3screenHeight; // xmm11
+	__m128 unk3Float_18; // xmm13
+	__m128 unk3ScreenWidth; // xmm7
+	__m128 unk3Float_4; // xmm8
+	__m128 unk3Float_8; // xmm9
+	__m128 v16;
+	__m128 v17;
+	__m128 v72;
+	__m128 v19;
+	__m128 v20;
+	__m128 v25;
+	__m128 v26;
+	__m128 v30;
+	__m128 v32;
+	__m128 v33;
+	__m128 v77;
+	__m128 v73;
+	__m128 v36;
+	__m128 v37;
+	__m128 v65;
+	__m128 v66;
+	__m128 v67;
+	__m128 v68;
+	__m128 v69;
+	__m128 v70;
+	__m128 v71;
 
-	const __m128 v24 = _mm_set1_ps(-1.0f);
-	const __m128 v28 = _mm_setzero_ps();
-	const __m128 v48 = _mm_setzero_ps();
-	const __m128 v51 = _mm_set1_ps(2.0f);
-	const __m128 v53 = _mm_mul_ps(
-		_mm_sub_ps(
-			_mm_mul_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(v28, v74), _mm_mul_ps(v51, v77)), _mm_mul_ps(v48, v73)), v47),
-			_mm_mul_ps(
-				_mm_add_ps(
-					_mm_add_ps(_mm_add_ps(_mm_mul_ps(v51, v16), _mm_mul_ps(v28, v17)), _mm_mul_ps(v48, v72)),
-					v24),
-				v52)),
-		_mm_set1_ps(globals.screenWidth != 0.f ? globals.screenWidth : elementWidth));
 
-	const __m128 v39 = _mm_set1_ps(1.0f);
-	const __m128 v49 = _mm_set1_ps(-2.0f);
-	const __m128 v50 = _mm_setzero_ps();
-	const __m128 v83 = _mm_setzero_ps();
-	const __m128 v54 = _mm_mul_ps(
-		_mm_sub_ps(
-			_mm_mul_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(v83, v74), _mm_mul_ps(v49, v77)), _mm_mul_ps(v50, v73)), v47),
-			_mm_mul_ps(
-				_mm_add_ps(
-					_mm_add_ps(_mm_add_ps(_mm_mul_ps(v49, v16), _mm_mul_ps(v83, v17)), _mm_mul_ps(v50, v72)),
-					v39),
-				v52)),
-		_mm_set1_ps(globals.screenHeight != 0.f ? globals.screenHeight : elementHeight));
 
-	const __m128 v42 = _mm_set1_ps(2.0f);
-	const __m128 v46 = _mm_mul_ps(v42, v42);
-	const __m128 v55 = _mm_mul_ps(
-		_mm_mul_ps(_mm_add_ps(_mm_mul_ps(_mm_mul_ps(_mm_mul_ps(v20, v19), a3[4]), v46), v46), v47),
-		v47);
-	const __m128 v56 = _mm_mul_ps(_mm_mul_ps(v55, v52), v52);
-	const __m128 v57 = _mm_mul_ps(v55, v47);
-	const __m128 v58 = _mm_sub_ps(_mm_add_ps(_mm_mul_ps(v54, v54), _mm_mul_ps(v53, v53)), v56);
-	const __m128 v59 = _mm_max_ps(_mm_set1_ps(1.1754944e-38f), v58);
-	const __m128 v60 = _mm_cmplt_ps(_mm_setzero_ps(), v58);
-	const __m128 v61 = _mm_mul_ps(v57, v52);
-	const __m128 v62 = _mm_rcp_ps(v59);
-	const __m128 v63 = _mm_sub_ps(_mm_set1_ps(1.0f), _mm_mul_ps(v62, v59));
-	const __m128 v64 = _mm_mul_ps(
-		_mm_and_ps(
-			_mm_add_ps(
-				_mm_sqrt_ps(_mm_and_ps(_mm_add_ps(_mm_mul_ps(_mm_mul_ps(v57, v47), v58), _mm_mul_ps(v61, v61)), v60)),
-				v61),
-			v60),
-		_mm_add_ps(_mm_mul_ps(_mm_add_ps(_mm_mul_ps(v63, v63), v63), v62), v62));
 
-	const __m128 v65 = _mm_add_ps(_mm_mul_ps(v64, v32), a5.b);
-	const __m128 v66 = _mm_add_ps(_mm_mul_ps(v64, v25), a5.a);
-	const __m128 v67 = _mm_shuffle_ps(v65, v65, _MM_SHUFFLE(0, 3, 2, 1));
-	const __m128 v68 = _mm_sub_ps(v67, v65);
-	const __m128 v69 = _mm_shuffle_ps(v66, v66, _MM_SHUFFLE(0, 3, 2, 1));
-	const __m128 v70 = _mm_sub_ps(v69, v66);
-	const __m128 v71 = _mm_cmple_ps(
+
+
+
+	unk3Float_10 = _mm_set1_ps(drawInfo.ruiUnk3[0].float_10);
+	unk3screenHeight = _mm_set1_ps(drawInfo.ruiUnk3[0].screenHeight);
+	unk3Float_18 = _mm_set1_ps(drawInfo.ruiUnk3[0].float_18);
+	unk3ScreenWidth = _mm_set1_ps(drawInfo.ruiUnk3[0].screenWidth);
+	unk3Float_4 = _mm_set1_ps(drawInfo.ruiUnk3[0].float_4);
+	unk3Float_8 = _mm_set1_ps(drawInfo.ruiUnk3[0].float_8);
+	v16 = _mm_add_ps(
+		_mm_add_ps(
+			_mm_set1_ps(drawInfo.float_10),
+			_mm_mul_ps(unk3ScreenWidth, a5.a)),
+		_mm_mul_ps(unk3Float_10, a5.b));
+	v17 = _mm_add_ps(
+		_mm_add_ps(
+			_mm_set1_ps(drawInfo.float_14),
+			_mm_mul_ps(unk3Float_4, a5.a)),
+		_mm_mul_ps(unk3screenHeight, a5.b));
+	v72 = _mm_add_ps(
+		_mm_add_ps(
+			_mm_set1_ps(drawInfo.float_18),
+			_mm_mul_ps(unk3Float_8, a5.a)),
+		_mm_mul_ps(unk3Float_18, a5.b));
+
+	v19 = (__m128)_mm_shuffle_ps(*a4,*a4, _MM_SHUFFLE(1,1,0,0));
+	v20 = (__m128)_mm_shuffle_ps(*a4,*a4, _MM_SHUFFLE(2,3,3,2));
+
+
+
+	v25 = _mm_add_ps(_mm_mul_ps(a3[0], v19), _mm_mul_ps(a3[2], v20));
+	v26 = _mm_mul_ps(a3[1], v19);
+
+	v30 = _mm_mul_ps(a3[3], v20);
+
+	v32 = _mm_add_ps(v26, v30);
+
+	v33 = _mm_mul_ps(unk3Float_18, v32);
+	v77 = _mm_add_ps(_mm_mul_ps(unk3ScreenWidth, v25), _mm_mul_ps(unk3Float_10, v32));
+
+	v73 = _mm_add_ps(_mm_mul_ps(unk3Float_8, v25), v33);
+	v36 = _mm_mul_ps(unk3screenHeight, v32);
+	v37 = _mm_mul_ps(unk3Float_4, v25);
+
+
+	v33.m128_f32[0] = 1 * 2.0;
+
+
+	v65 = a5.b;
+	v66 = a5.a;
+	v67 = _mm_shuffle_ps(v65,v65, _MM_SHUFFLE(0,3,2,1));
+	v68 = _mm_sub_ps(v67, (__m128)v65);
+	v69 = _mm_shuffle_ps(v66,v66, _MM_SHUFFLE(0,3,2,1));
+	v70 = _mm_sub_ps(v69, (__m128)v66);
+	v71 = _mm_cmple_ps(
 		_mm_mul_ps(
 			_mm_sub_ps(
-				_mm_mul_ps(_mm_shuffle_ps(v68, v68, _MM_SHUFFLE(2, 1, 0, 3)), v70),
-				_mm_mul_ps(_mm_shuffle_ps(v70, v70, _MM_SHUFFLE(2, 1, 0, 3)), v68)),
-			_mm_sub_ps(_mm_mul_ps(a3[3], v84), _mm_mul_ps(a3[1], v82))),
+				_mm_mul_ps((__m128)_mm_shuffle_ps(v68,v68, _MM_SHUFFLE(2,1,0,3)), (__m128)v70),
+				_mm_mul_ps((__m128)_mm_shuffle_ps(v70,v70, _MM_SHUFFLE(2,1,0,3)), (__m128)v68)),
+			_mm_sub_ps(_mm_mul_ps(a3[3], a3[0]), _mm_mul_ps(a3[1], a3[2]))),
 		_mm_setzero_ps());
-
-	a5.a = _mm_or_ps(_mm_andnot_ps(v71, v66), _mm_and_ps(v71, v69));
-	a5.b = _mm_or_ps(_mm_andnot_ps(v71, v65), _mm_and_ps(v71, v67));
+	a5.a = _mm_or_ps(_mm_andnot_ps(v71, (__m128)v66), _mm_and_ps(v71, v69));
+	a5.b = _mm_or_ps(_mm_andnot_ps(v71, (__m128)v65), _mm_and_ps(v71, v67));
 }
 
 void RenderInstance::sub_FFAE0(__m128 a1,__m128 a2, __m128* a3)
@@ -196,8 +185,8 @@ void RenderInstance::generateDrawTriangle(RenderQuad* v180,bool v24,__m128 a8,__
 		v32 = _mm_shuffle_ps(v32,v32, _MM_SHUFFLE(1,0,3,2));
 	}
 
-	_mm_storeu_ps(&v180->vert[0][0], v33);
-	_mm_storeu_ps(&v180->vert[2][0], v32);
+	*(__m128 *)&v180->vert[0][0] = v33;
+	*(__m128 *)&v180->vert[2][0] = v32;
 }
 
 __m128 xmmword_12A146A0a = _mm_castsi128_ps(_mm_set_epi32(0,0,0xFFFFFFFF,0));
@@ -244,7 +233,7 @@ void RenderInstance::sub_F9B80_rev(
 	const __m128& texSize)
 {
 	ImageAtlas *imageAtlas; // r13
-	int16_t v24; // r14
+	__int16 v24; // r14
 	uint16_t assetIndex; // cx
 	uiImageAtlasUnk *v35; // rcx
 	__m128 v38; // xmm1
@@ -296,7 +285,9 @@ void RenderInstance::sub_F9B80_rev(
 	__m128 v107; // xmm2
 	__m128 v108; // xmm3
 	__m128 *v109; // r9
+	__m128 v110; // xmm5
 	__m128 v112; // xmm0
+	__m128 v113; // xmm0
 	__m128 v114; // xmm5
 	__m128 v115; // xmm0
 	__m128 v119; // xmm3
@@ -360,13 +351,11 @@ void RenderInstance::sub_F9B80_rev(
 		return;
 	}
 
-	v35 = &imageAtlas->renderOffsets[assetIndex];
+	v35 = &imageAtlas->renderOffsets[(__int16)assetIndex];
 
 
 	v38 = _mm_mul_ps(_mm_set_ps(0,0,1,1),ruiSize);
-	
-	v39 = _mm_xor_ps(v35->m128_0, _mm_set_ps(-0.0f, -0.0f, 0.f, 0.f));
-
+	v39 = _mm_xor_ps(v35->m128_0, _mm_set_ps(-0.0,-0.0,0,0));
 	v40 = _mm_and_ps(v35->m128_0, (__m128)xmmword_12A14650a);
 	v41 = _mm_add_ps(_mm_shuffle_ps(v35->m128_0,v35->m128_0, _MM_SHUFFLE(3,2,3,2)), v39);
 	v42 = _mm_sub_ps(_mm_set1_ps(1), v41);
@@ -389,7 +378,7 @@ void RenderInstance::sub_F9B80_rev(
 	v54 = _mm_movelh_ps(_mm_mul_ps(_mm_mul_ps(v42, v46), v53), _mm_set1_ps(1));
 	v55 = _mm_mul_ps(v54, a4.xUvVector);
 	v56 = _mm_mul_ps(
-		_mm_sub_ps(_mm_add_ps(_mm_mul_ps((__m128)_mm_shuffle_ps(v53,v53, _MM_SHUFFLE(3,2,3,2)), v39), _mm_set_ps(1,1,0,0)), texMin),
+		_mm_sub_ps(_mm_add_ps(_mm_mul_ps((__m128)_mm_shuffle_ps(v53,v53, 238), v39), _mm_set_ps(1,1,0,0)), texMin),
 		texSizeRcp);
 	v57 = _mm_mul_ps(v50, a4.xUvVector);
 	v58 = _mm_mul_ps(v54, a4.yUvVector);
@@ -399,9 +388,9 @@ void RenderInstance::sub_F9B80_rev(
 	v62 = _mm_unpackhi_ps(v61, v60);
 	v63 = _mm_unpacklo_ps(v61, v60);
 	v64 = _mm_add_ps(v59, _mm_mul_ps(v54, a4.UvBase));
-	v65 = _mm_movemask_ps(_mm_cmple_ps(a9, _mm_xor_ps(v56, _mm_set_ps(0,0,-0.0,-0.0))));
+	v65 = _mm_movemask_ps(_mm_cmple_ps(a9, _mm_xor_ps((__m128)v56, _mm_set_ps(-0.0,-0.0,0,0))));
 
-	v187 = _mm_movemask_ps(_mm_cmple_ps(a9, _mm_xor_ps(_mm_shuffle_ps(v56,v56, _MM_SHUFFLE(1,0,3,2)),_mm_set_ps(0,0,-0.0,-0.0))));
+	v187 = _mm_movemask_ps(_mm_cmple_ps(a9, _mm_xor_ps((__m128)_mm_shuffle_ps(v56,v56, 78),_mm_set_ps(-0.0,-0.0,0,0))));
 	if ( (v65 & 3) == 0 )
 	{
 
@@ -419,8 +408,8 @@ void RenderInstance::sub_F9B80_rev(
 		v75 = _mm_unpacklo_ps(v178.a, v178.b);
 		if ( a6 == 2 )
 		{
-			v75 = _mm_shuffle_ps(v75,v75, _MM_SHUFFLE(1, 0, 3, 2));
-			v74 = _mm_shuffle_ps(v74,v74, _MM_SHUFFLE(1, 0, 3, 2));
+			v75 = _mm_shuffle_ps(v75,v75, 78);
+			v74 = _mm_shuffle_ps(v75,v75, 78);
 		}
 		//v76 = *(_QWORD *)&a4->assetIndex;
 
@@ -434,8 +423,8 @@ void RenderInstance::sub_F9B80_rev(
 		quad.assetIndex2 = a4.assetIndex2;
 		quad.styleDescriptorIndex = a4.styleDescriptorIndex;
 		quad.flags = a4.flags;
-		_mm_storeu_ps(&quad.vert[0][0], v75);
-		_mm_storeu_ps(&quad.vert[2][0], v74);
+		*(__m128 *)&quad.vert[0][0] = v75;
+		*(__m128 *)&quad.vert[2][0] = v74;
 
 		AddQuad(quad);
 
@@ -471,8 +460,8 @@ void RenderInstance::sub_F9B80_rev(
 		quad.assetIndex2 = a4.assetIndex2;
 		quad.styleDescriptorIndex = a4.styleDescriptorIndex;
 		quad.flags = a4.flags;
-		_mm_storeu_ps(&quad.vert[0][0], v87);
-		_mm_storeu_ps(&quad.vert[2][0], v86);
+		*(__m128*)& quad.vert[0][0] = v87;
+		*(__m128*)& quad.vert[2][0] = v86;
 		AddQuad(quad);
 	}
 
@@ -493,8 +482,8 @@ void RenderInstance::sub_F9B80_rev(
 		v100 = _mm_unpacklo_ps(v178.a, v178.b);
 		if ( a6 == 2 )
 		{
-			v100 = _mm_shuffle_ps(v100,v100, _MM_SHUFFLE(1, 0, 3, 2));
-			v99 = _mm_shuffle_ps(v99,v99, _MM_SHUFFLE(1, 0, 3, 2));
+			v100 = _mm_shuffle_ps(v100,v100, 78);
+			v99 = _mm_shuffle_ps(v99,v99, 78);
 		}
 
 
@@ -511,8 +500,8 @@ void RenderInstance::sub_F9B80_rev(
 		quad.assetIndex2 = a4.assetIndex2;
 		quad.styleDescriptorIndex = a4.styleDescriptorIndex;
 		quad.flags = a4.flags;
-		_mm_storeu_ps(&quad.vert[0][0], v100);
-		_mm_storeu_ps(&quad.vert[2][0], v99);
+		*(__m128 *)&quad.vert[0][0] = v100;
+		*(__m128 *)&quad.vert[2][0] = v99;
 
 
 		AddQuad(quad);
@@ -533,6 +522,7 @@ void RenderInstance::sub_F9B80_rev(
 			sub_FEF30(a3a, v109, tri);
 
 		}
+		v113 = v110;
 		v114 = _mm_unpackhi_ps(tri.a, tri.b);
 		v115 = _mm_unpacklo_ps(tri.a, tri.b);
 		if (a6 == 2)
@@ -553,8 +543,8 @@ void RenderInstance::sub_F9B80_rev(
 		quad.UvBase = _mm_or_ps(_mm_andnot_ps((__m128)xmmword_12A146A0a, v51), _mm_and_ps(v64, (__m128)xmmword_12A146A0a));
 		quad.xUvVector = _mm_or_ps(_mm_andnot_ps((__m128)xmmword_12A146A0a, v57), _mm_and_ps(v55, (__m128)xmmword_12A146A0a));
 		quad.yUvVector = _mm_or_ps(_mm_andnot_ps((__m128)xmmword_12A146A0a, v52), _mm_and_ps(v58, (__m128)xmmword_12A146A0a));
-		_mm_storeu_ps(&quad.vert[0][0], v115);
-		_mm_storeu_ps(&quad.vert[2][0], v114);
+		*(__m128*)& quad.vert[0][0] = v115;
+		*(__m128*)& quad.vert[2][0] = v114;
 		AddQuad(quad);
 	}
 
@@ -565,12 +555,12 @@ void RenderInstance::sub_F9B80_rev(
 		TriData tri = a5.GenTri(v119,v120);
 		v123 = _mm_unpacklo_ps(tri.a, tri.b);
 		v124 = _mm_unpackhi_ps(tri.a, tri.b);
-		
 		if (a6 == 2)
 		{
 			v123 = _mm_shuffle_ps(v123, v123, 78);
 			v124 = _mm_shuffle_ps(v124, v124, 78);
 		}
+
 
 
 		quad.UvBase = v64;
@@ -583,8 +573,8 @@ void RenderInstance::sub_F9B80_rev(
 		quad.assetIndex2 = a4.assetIndex2;
 		quad.styleDescriptorIndex = a4.styleDescriptorIndex;
 		quad.flags = a4.flags;
-		_mm_storeu_ps(&quad.vert[2][0], v124);
-		_mm_storeu_ps(&quad.vert[0][0], v123);
+		*(__m128*)& quad.vert[2][0] = v124;
+		*(__m128*)& quad.vert[0][0] = v123;
 		AddQuad(quad);
 	}
 	if ( (v182 | v65 & 4)==0 )
@@ -602,8 +592,8 @@ void RenderInstance::sub_F9B80_rev(
 		v136 = (__m128)_mm_unpacklo_ps(tri.a, tri.b);
 		if (a6 == 2)
 		{
-			v136 = _mm_shuffle_ps(v136, v136, _MM_SHUFFLE(1, 0, 3, 2));
-			v135 = _mm_shuffle_ps(v135, v135, _MM_SHUFFLE(1, 0, 3, 2));
+			v136 = _mm_shuffle_ps(v136, v136, 78);
+			v135 = _mm_shuffle_ps(v135, v135, 78);
 		}
 
 		quad.UvBase = _mm_or_ps(
@@ -623,8 +613,8 @@ void RenderInstance::sub_F9B80_rev(
 		quad.styleDescriptorIndex = a4.styleDescriptorIndex;
 		quad.flags = a4.flags;
 
-		_mm_storeu_ps(&quad.vert[0][0], v136);
-		_mm_storeu_ps(&quad.vert[2][0], v135);
+		*(__m128*)& quad.vert[0][0] = v136;
+		*(__m128*)& quad.vert[2][0] = v135;
 		AddQuad(quad);
 	}
 
@@ -671,8 +661,8 @@ void RenderInstance::sub_F9B80_rev(
 		quad.assetIndex2 = a4.assetIndex2;
 		quad.styleDescriptorIndex = a4.styleDescriptorIndex;
 		quad.flags = a4.flags;
-		_mm_storeu_ps(&quad.vert[0][0], v149);
-		_mm_storeu_ps(&quad.vert[2][0], v148);
+		*(__m128 *)&quad.vert[0][0] = v149;
+		*(__m128 *)&quad.vert[2][0] = v148;
 		AddQuad(quad);
 		v139 = v65;
 	}
@@ -693,8 +683,8 @@ void RenderInstance::sub_F9B80_rev(
 		v163 = _mm_unpacklo_ps(tri.a, tri.b);
 		if (a6 == 2)
 		{
-			v163 = _mm_shuffle_ps(v163, v163, _MM_SHUFFLE(1, 0, 3, 2));
-			v162 = _mm_shuffle_ps(v162, v162, _MM_SHUFFLE(1, 0, 3, 2));
+			v163 = _mm_shuffle_ps(v163, v163, 78);
+			v162 = _mm_shuffle_ps(v162, v162, 78);
 		}
 
 		quad.UvBase = _mm_or_ps(
@@ -715,8 +705,8 @@ void RenderInstance::sub_F9B80_rev(
 		quad.flags = a4.flags;
 
 
-		_mm_storeu_ps(&quad.vert[0][0], v163);
-		_mm_storeu_ps(&quad.vert[2][0], v162);
+		*(__m128*)& quad.vert[0][0] = v163;
+		*(__m128*)& quad.vert[2][0] = v162;
 		AddQuad(quad);
 	}
 
@@ -751,11 +741,12 @@ void RenderInstance::sub_F9B80_rev(
 		quad.assetIndex2 = a4.assetIndex2;
 		quad.styleDescriptorIndex = a4.styleDescriptorIndex;
 		quad.flags = a4.flags;
-		_mm_storeu_ps(&quad.vert[0][0], v175);
-		_mm_storeu_ps(&quad.vert[2][0], v174);
+		*(__m128 *)&quad.vert[0][0] = v175;
+		*(__m128 *)&quad.vert[2][0] = v174;
 		AddQuad(quad);
 	}
 }
+
 
 
 void RenderInstance::StartFrame(float time) {
@@ -763,9 +754,9 @@ void RenderInstance::StartFrame(float time) {
 	verts.clear();
 	indices.clear();
 	transformResults.clear();
-	static uint64_t transformHashes[3] = { randomInt64(),randomInt64(),randomInt64() };
-	transformResults.push_back(TransformResult(_mm_set_ps(1, 0, 0, 1), _mm_setzero_ps(), _mm_set_ps(elementHeight, elementHeight, elementWidth, elementWidth), transformHashes[0]));
-	transformResults.push_back(TransformResult(_mm_set_ps(1, 0, 0, 1), _mm_setzero_ps(), _mm_set_ps(elementHeight, elementHeight, elementWidth, elementWidth), transformHashes[1]));
+	static uint64_t transformHashes[3] = {randomInt64(),randomInt64(),randomInt64()};
+	transformResults.push_back(TransformResult(_mm_set_ps(1,0,0,1),_mm_setzero_ps(),_mm_set_ps(elementHeight,elementHeight,elementWidth,elementWidth),transformHashes[0]));
+	transformResults.push_back(TransformResult(_mm_set_ps(1,0,0,1),_mm_setzero_ps(),_mm_set_ps(elementHeight,elementHeight,elementWidth,elementWidth),transformHashes[1]));
 	globals.currentTime = time;
 	float v17 = elementHeightRpc;
 	v17 = v17 * elementHeight;
@@ -787,29 +778,40 @@ void RenderInstance::StartFrame(float time) {
 		_mm_set1_ps(0.5),
 		_mm_mul_ps(_mm_shuffle_ps(directionVector, directionVector, _MM_SHUFFLE(3, 0, 3, 0)), _mm_set1_ps(0.5)));
 	__m128 inputSize = _mm_mul_ps(v19, _mm_shuffle_ps(directionVector, directionVector, _MM_SHUFFLE(3, 3, 0, 0)));
-	transformResults.push_back(TransformResult(directionVector, position, inputSize, transformHashes[2]));
-	styleDescriptor.clear();	g_renderFramework->RuiClearFrame();
+	transformResults.push_back(TransformResult(directionVector,position,inputSize,transformHashes[2]));
+	styleDescriptor.clear();
+	g_renderFramework->RuiClearFrame();
 }
 
 
 
 void RenderInstance::EndFrame() {
 
+	static int frameCounter = 0;
+	frameCounter++;
+
 	std::sort(jobs.begin(), jobs.end(), [](RenderJob& a, RenderJob& b) {
 		return a.layer < b.layer;
 	});
 
+	size_t jobCount = jobs.size();
 	for (auto& job : jobs) {
 		job.func(*this);
 	}
 	jobs.clear();
+
+	if (frameCounter % 300 == 1) {
+		printf("[RENDER] Frame %d: jobs=%zu verts=%zu indices=%zu segments=%zu styles=%zu\n",
+			frameCounter, jobCount, verts.size(), indices.size(), segments.size(), styleDescriptor.size());
+		fflush(stdout);
+	}
 
 	g_renderFramework->RuiBindPipeline();
 
 	g_renderFramework->RuiWriteIndexBuffer(indices);
 	g_renderFramework->RuiWriteStyleBuffer(styleDescriptor);
 	g_renderFramework->RuiWriteVertexBuffer(verts);
-	
+
 
 	for (size_t i = 0; i < segments.size(); i++) {
 		size_t endIndex;

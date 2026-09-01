@@ -1,5 +1,5 @@
 #include "TransformNodes.h"
-#include "Imgui/imgui_stdlib.h"
+#include "imgui/imgui_stdlib.h"
 #include "Util.h"
 
 __m128 xmmword_12A146C0 = _mm_castsi128_ps(_mm_set_epi32(0xFFFFFFFF,0,0,0xFFFFFFFF));
@@ -36,7 +36,7 @@ void Transform0Node::Export(RuiExportPrototype& proto) {
 
 std::vector<std::shared_ptr<ImFlow::PinProto>> Transform0Node::GetPinInfo() {
 	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
 }
@@ -44,14 +44,16 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> Transform0Node::GetPinInfo() {
 Transform1Node::Transform1Node(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
 
 	getIn<TransformResult>("Source")->setEmptyVal(render.transformResults[2]);
-	getOut<TransformResult>("Out")->behaviour([this]() {
+	uint64_t outHash = randomInt64();
+	getOut<TransformResult>("Out")->behaviour([this,outHash]() {
 		TransformResult res;
+		res.hash = outHash;
 		const TransformResult& parent = getInVal<TransformResult>("Source");
 		const TransformSize& size = getInVal<TransformSize>("Size");
 
 		res.position = parent.position;
 		res.directionVector = parent.directionVector;
-		res.inputSize = size.size;
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 		render.transformResults.push_back(res);
 		return res;
 	});;
@@ -72,13 +74,47 @@ void Transform1Node::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, 
 }
 
 void Transform1Node::Export(RuiExportPrototype& proto) {
+	const TransformResult& parent = getInVal<TransformResult>("Source");
+	const TransformSize& size = getInVal<TransformSize>("Size");
+	const TransformResult& out = getOut<TransformResult>("Out")->val();
 
+	ExportElement<uint64_t> ele;
+#if _DEBUG
+	ele.sourceNodeName = typeid(*this).name();
+#endif
+	ele.identifier = out.hash;
+	ele.dependencys = { parent.hash };
+	ele.callback = [parent, out, size](RuiExportPrototype& proto) {
+		struct CloneFileStruct {
+			uint8_t type = 1;  // UI_ApplyHalfPin_Clone
+			uint8_t count = 1;
+			uint16_t source;
+		};
+		uint16_t transId = (uint16_t)proto.transformIndices.size();
+		proto.transformIndices.emplace(out.hash, transId);
+
+		ExportElement<std::string> sizeEle;
+#if _DEBUG
+		sizeEle.sourceNodeName = "Transform1Node";
+#endif
+		sizeEle.identifier = Variable::UniqueName();
+		sizeEle.dependencys = { size.name };
+		sizeEle.callback = [transId, size](RuiExportPrototype& proto) {
+			proto.codeLines.push_back(std::format("transformSize[{}] = {};", transId, size.GetFormattedName(proto)));
+		};
+		proto.codeElements.push_back(sizeEle);
+
+		CloneFileStruct trans{};
+		trans.source = proto.transformIndices[parent.hash];
+		proto.AddTransformData((uint8_t*)&trans, sizeof(trans));
+	};
+	proto.transformCallbacks.push_back(ele);
 }
 
 std::vector<std::shared_ptr<ImFlow::PinProto>> Transform1Node::GetPinInfo() {
 	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
 	info.push_back(std::make_shared<ImFlow::InPinProto<TransformResult>>("Source",ImFlow::ConnectionFilter::SameType(),TransformResult()));
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
 }
@@ -103,7 +139,7 @@ Transform2Node::Transform2Node(RenderInstance& rend,ImFlow::StyleManager& style)
 			_mm_set_ps(0,0,0,val_0.value.y),
 			0);
 		__m128 v15 = _mm_set_ps(0,0,0,val_3.value.x);
-		__m128 v16 = _mm_set_ps(0,0,0,val_0.value.y);
+		__m128 v16 = _mm_set_ps(0,0,0,val_3.value.y);
 		res.directionVector = v13;
 		__m128 v18 = _mm_mul_ps(v14, parent.directionVector);
 		__m128 v19 = _mm_mul_ps(_mm_shuffle_ps(v15, v16, 0), v13);
@@ -112,7 +148,7 @@ Transform2Node::Transform2Node(RenderInstance& rend,ImFlow::StyleManager& style)
 				_mm_add_ps((__m128)_mm_shuffle_ps(v18,v18, 78), v18),
 				parent.position),
 			_mm_add_ps((__m128)_mm_shuffle_ps(v19,v19, 78), v19));
-		res.inputSize = size.size;
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 		render.transformResults.push_back(res);
 		return res;
 	});
@@ -160,11 +196,12 @@ void Transform2Node::Export(RuiExportPrototype& proto) {
 		};
 		proto.codeElements.push_back(ele);
 		struct Transform2FileStruct {
-			uint8_t type = 2;
+			uint8_t type = 4; // UI_ApplyOnePin_Rigid: size_xxyy[child]/size_xxyy[parent] * parent.grad
 			uint8_t count = 1;
 			uint16_t parent;
 			Float2Offsets val0;
 			Float2Offsets val3;
+			uint16_t unk_pad = 0;  // extra uint16 padding per entry
 		};
 		Transform2FileStruct trans{};
 		trans.parent = proto.transformIndices[parent.hash];
@@ -182,8 +219,110 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> Transform2Node::GetPinInfo() {
 
 	info.push_back(std::make_shared<ImFlow::InPinProto<Float2Variable>>("Val_3",ImFlow::ConnectionFilter::SameType(),Float2Variable(.5f,.5f)));
 
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 
+	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
+	return info;
+}
+
+LetterboxTransformNode::LetterboxTransformNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+
+	getIn<TransformResult>("Parent")->setEmptyVal(render.transformResults[2]);
+	uint64_t outHash = randomInt64();
+	getOut<TransformResult>("Out")->behaviour([this,outHash]() {
+		TransformResult res;
+		res.hash = outHash;
+		const Float2Variable& val_0 = getInVal<Float2Variable>("Val_0");
+		const Float2Variable& val_3 = getInVal<Float2Variable>("Val_3");
+		const TransformSize& size = getInVal<TransformSize>("Size");
+		const TransformResult& parent = getInVal<TransformResult>("Parent");
+
+		__m128 elementSizeRatio = _mm_set_ps(0,0,render.elementHeightRpc,render.elementWidthRpc);
+		__m128 elementSizeRatio_unpacked = _mm_unpacklo_ps(elementSizeRatio, elementSizeRatio);
+		__m128 v13 = _mm_and_ps(_mm_mul_ps(size.size, elementSizeRatio_unpacked), (__m128)xmmword_12A146C0);
+		__m128 v14 = _mm_shuffle_ps(
+			_mm_set_ps(0,0,0,val_0.value.x),
+			_mm_set_ps(0,0,0,val_0.value.y),
+			0);
+		__m128 v15 = _mm_set_ps(0,0,0,val_3.value.x);
+		__m128 v16 = _mm_set_ps(0,0,0,val_3.value.y);
+		res.directionVector = v13;
+		__m128 v18 = _mm_mul_ps(v14, parent.directionVector);
+		__m128 v19 = _mm_mul_ps(_mm_shuffle_ps(v15, v16, 0), v13);
+		res.position = _mm_sub_ps(
+			_mm_add_ps(
+				_mm_add_ps((__m128)_mm_shuffle_ps(v18,v18, 78), v18),
+				parent.position),
+			_mm_add_ps((__m128)_mm_shuffle_ps(v19,v19, 78), v19));
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
+		render.transformResults.push_back(res);
+		return res;
+	});
+}
+
+LetterboxTransformNode::LetterboxTransformNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):LetterboxTransformNode(rend,style){}
+
+void LetterboxTransformNode::draw() {
+	ImGui::PushItemWidth(90);
+	ImGui::PopItemWidth();
+}
+
+void LetterboxTransformNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+void LetterboxTransformNode::Export(RuiExportPrototype& proto) {
+	const auto& out = getOut<TransformResult>("Out")->val();
+	const auto& v0 = getInVal<Float2Variable>("Val_0");
+	const auto& v3 = getInVal<Float2Variable>("Val_3");
+	const auto& parent = getInVal<TransformResult>("Parent");
+	const auto& size = getInVal<TransformSize>("Size");
+	proto.AddDataVariable(v0);
+	proto.AddDataVariable(v3);
+	ExportElement<uint64_t> ele;
+#if _DEBUG
+	ele.sourceNodeName = typeid(*this).name();
+#endif
+	ele.identifier = out.hash;
+	ele.dependencys = {parent.hash};
+	ele.callback = [parent,v0,v3,out,size](RuiExportPrototype& proto) {
+		uint16_t transId = (uint16_t)proto.transformIndices.size();
+		proto.transformIndices.emplace(out.hash,transId);
+		ExportElement<std::string> ele;
+#if _DEBUG
+		ele.sourceNodeName = "LetterboxTransformNode";
+#endif
+		ele.identifier = Variable::UniqueName();
+		ele.dependencys = { size.name };
+		ele.callback = [transId, size](RuiExportPrototype& proto) {
+			proto.codeLines.push_back(std::format("transformSize[{}] = {};",transId,size.GetFormattedName(proto)));
+		};
+		proto.codeElements.push_back(ele);
+		struct LetterboxFileStruct {
+			uint8_t type = 7;
+			uint8_t count = 1;
+			uint16_t parent;
+			Float2Offsets val0;
+			Float2Offsets val3;
+			uint16_t unk_pad = 0;
+		};
+		LetterboxFileStruct trans{};
+		trans.parent = proto.transformIndices[parent.hash];
+		trans.val0 = proto.GetFloat2DataVariableOffset(v0);
+		trans.val3 = proto.GetFloat2DataVariableOffset(v3);
+		proto.AddTransformData((uint8_t*)&trans,sizeof(trans));
+	};
+	proto.transformCallbacks.push_back(ele);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> LetterboxTransformNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformResult>>("Parent",ImFlow::ConnectionFilter::SameType(),TransformResult()));
+	info.push_back(std::make_shared<ImFlow::InPinProto<Float2Variable>>("Val_0",ImFlow::ConnectionFilter::SameType(),Float2Variable(.5f,.5f)));
+	info.push_back(std::make_shared<ImFlow::InPinProto<Float2Variable>>("Val_3",ImFlow::ConnectionFilter::SameType(),Float2Variable(.5f,.5f)));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
 }
@@ -272,6 +411,7 @@ void Transform3Node::Export(RuiExportPrototype& proto) {
 			uint16_t parent;
 			Float2Offsets val0;
 			Float2Offsets val3;
+			uint16_t unk_pad = 0;  // extra uint16 padding per entry
 		};
 		Transform3FileStruct trans{};
 		trans.parent = proto.transformIndices[parent.hash];
@@ -289,7 +429,7 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> Transform3Node::GetPinInfo() {
 
 	info.push_back(std::make_shared<ImFlow::InPinProto<Float2Variable>>("Val_3",ImFlow::ConnectionFilter::SameType(),Float2Variable(.5f,.5f)));
 
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
@@ -329,7 +469,7 @@ Transform4Node::Transform4Node(RenderInstance& rend,ImFlow::StyleManager& style)
 				_mm_add_ps(_mm_shuffle_ps(v16,v16, _MM_SHUFFLE(1,0,3,2)), v16),
 				parent.position),
 			_mm_add_ps(_mm_shuffle_ps(v15,v15, _MM_SHUFFLE(1,0,3,2)), v15));
-		res.inputSize = size.size;
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 		render.transformResults.push_back(res);
 		return res;
 	});
@@ -382,6 +522,7 @@ void Transform4Node::Export(RuiExportPrototype& proto) {
 			uint16_t parent;
 			Float2Offsets val0;
 			Float2Offsets val3;
+			uint16_t unk_pad = 0;  // extra uint16 padding per entry
 		};
 		Transform4FileStruct trans{};
 		trans.parent = proto.transformIndices[parent.hash];
@@ -399,7 +540,7 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> Transform4Node::GetPinInfo() {
 
 	info.push_back(std::make_shared<ImFlow::InPinProto<Float2Variable>>("Val_3",ImFlow::ConnectionFilter::SameType(),Float2Variable(.5f,.5f)));
 
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
@@ -466,7 +607,7 @@ Transform5Node::Transform5Node(RenderInstance& rend,ImFlow::StyleManager& style)
 		__m128 v24 = _mm_mul_ps(_mm_shuffle_ps(v16, v18, 0), v23);
 		res.directionVector = v23;
 		res.position = _mm_sub_ps(v19, _mm_add_ps(_mm_shuffle_ps(v24,v24, 78), (__m128)v24));
-		res.inputSize = size.size;
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 
 
 		render.transformResults.push_back(res);
@@ -521,6 +662,7 @@ void Transform5Node::Export(RuiExportPrototype& proto) {
 			uint16_t parent;
 			Float2Offsets val0;
 			Float2Offsets val3;
+			uint16_t unk_pad = 0;  // extra uint16 padding per entry
 		};
 		Transform5FileStruct trans{};
 		trans.parent = proto.transformIndices[parent.hash];
@@ -538,7 +680,7 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> Transform5Node::GetPinInfo() {
 
 	info.push_back(std::make_shared<ImFlow::InPinProto<Float2Variable>>("Val_3",ImFlow::ConnectionFilter::SameType(),Float2Variable(.5f,.5f)));
 
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
@@ -589,7 +731,7 @@ Transform6Node::Transform6Node(RenderInstance& rend,ImFlow::StyleManager& style)
 		__m128 v24 = _mm_mul_ps(_mm_shuffle_ps(v16, v18, 0), v23);
 		res.directionVector = v23;
 		res.position = _mm_sub_ps(v19, _mm_add_ps(_mm_shuffle_ps(v24,v24, 78), (__m128)v24));
-		res.inputSize = size.size;
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 
 		render.transformResults.push_back(res);
 		return res;
@@ -631,6 +773,7 @@ void Transform6Node::Export(RuiExportPrototype& proto) {
 			uint16_t parent;
 			Float2Offsets val0;
 			Float2Offsets val3;
+			uint16_t unk_pad = 0;  // extra uint16 padding per entry
 		};
 		uint16_t transId = (uint16_t)proto.transformIndices.size();
 		proto.transformIndices.emplace(out.hash,transId);
@@ -660,7 +803,7 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> Transform6Node::GetPinInfo() {
 
 	info.push_back(std::make_shared<ImFlow::InPinProto<Float2Variable>>("Val_3",ImFlow::ConnectionFilter::SameType(),Float2Variable(.5f,.5f)));
 
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
@@ -721,7 +864,7 @@ Transform7Node::Transform7Node(RenderInstance& rend,ImFlow::StyleManager& style)
 		res.position = _mm_sub_ps(v14, _mm_add_ps(_mm_shuffle_ps(v16,v16, 78), v16));
 
 
-		res.inputSize = size.size;
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 
 		render.transformResults.push_back(res);
 		return res;
@@ -763,7 +906,7 @@ void Transform7Node::Export(RuiExportPrototype& proto) {
 	ele.dependencys = {p1parent.hash,p2parent.hash};
 	ele.callback = [p1parent,p1Pos,p2parent,p2Pos,translate,point,out,size](RuiExportPrototype& proto) {
 		struct Transform7FileStruct {
-			uint8_t type = 7;
+			uint8_t type = 8;   // UI_ApplyTwoPin_Scale
 			uint8_t count = 1;
 			uint16_t p1parent;
 			Float2Offsets p1pos;
@@ -771,6 +914,7 @@ void Transform7Node::Export(RuiExportPrototype& proto) {
 			Float2Offsets p2pos;
 			Float2Offsets translate;
 			Float2Offsets point;
+			uint16_t unk_pad = 0;  // extra uint16 padding per entry
 		};
 		uint16_t transId = (uint16_t)proto.transformIndices.size();
 		proto.transformIndices.emplace(out.hash,transId);
@@ -787,8 +931,8 @@ void Transform7Node::Export(RuiExportPrototype& proto) {
 		Transform7FileStruct trans{};
 		trans.p1parent = proto.transformIndices[p1parent.hash];
 		trans.p1pos = proto.GetFloat2DataVariableOffset(p1Pos);
-		trans.p1parent = proto.transformIndices[p2parent.hash];
-		trans.p1pos = proto.GetFloat2DataVariableOffset(p2Pos);
+		trans.p2parent = proto.transformIndices[p2parent.hash];
+		trans.p2pos = proto.GetFloat2DataVariableOffset(p2Pos);
 		trans.translate = proto.GetFloat2DataVariableOffset(translate);
 		trans.point = proto.GetFloat2DataVariableOffset(point);
 		proto.AddTransformData((uint8_t*)&trans,sizeof(trans));
@@ -813,7 +957,7 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> Transform7Node::GetPinInfo() {
 
 
 
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
@@ -889,7 +1033,7 @@ Transform8Node::Transform8Node(RenderInstance& rend,ImFlow::StyleManager& style)
 		res.position = _mm_sub_ps(pin1, _mm_add_ps((__m128)_mm_shuffle_ps(v30,v30, 78), (__m128)v30));
 
 
-		res.inputSize = size.size;
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 
 		render.transformResults.push_back(res);
 		return res;
@@ -931,7 +1075,7 @@ void Transform8Node::Export(RuiExportPrototype& proto) {
 	ele.dependencys = {p1parent.hash,p2parent.hash};
 	ele.callback = [p1parent,p1Pos,p2parent,p2Pos,translate,point,out,size](RuiExportPrototype& proto) {
 		struct Transform8FileStruct {
-			uint8_t type = 8;
+			uint8_t type = 9;   // UI_ApplyTwoPin_Pinch
 			uint8_t count = 1;
 			uint16_t p1parent;
 			Float2Offsets p1pos;
@@ -939,6 +1083,7 @@ void Transform8Node::Export(RuiExportPrototype& proto) {
 			Float2Offsets p2pos;
 			Float2Offsets translate;
 			Float2Offsets point;
+			uint16_t unk_pad = 0;  // extra uint16 padding per entry
 		};
 		uint16_t transId = (uint16_t)proto.transformIndices.size();
 		proto.transformIndices.emplace(out.hash,transId);
@@ -981,7 +1126,7 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> Transform8Node::GetPinInfo() {
 
 
 
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
@@ -1066,7 +1211,7 @@ Transform9Node::Transform9Node(RenderInstance& rend,ImFlow::StyleManager& style)
 		__m128 v34 = _mm_mul_ps(v15, v33);
 		res.directionVector = v33;
 		res.position = _mm_sub_ps(v23, _mm_add_ps((__m128)_mm_shuffle_ps(v34,v34, _MM_SHUFFLE(1,0,3,2)), (__m128)v34));
-		res.inputSize = size.size;
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 
 		render.transformResults.push_back(res);
 		return res;
@@ -1108,7 +1253,7 @@ void Transform9Node::Export(RuiExportPrototype& proto) {
 	ele.dependencys = {p1parent.hash,p2parent.hash};
 	ele.callback = [p1parent,p1Pos,p2parent,p2Pos,translate,point,out,size](RuiExportPrototype& proto) {
 		struct Transform9FileStruct {
-			uint8_t type = 7;
+			uint8_t type = 10;  // UI_ApplyTwoPin_Stretch
 			uint8_t count = 1;
 			uint16_t p1parent;
 			Float2Offsets p1pos;
@@ -1116,6 +1261,7 @@ void Transform9Node::Export(RuiExportPrototype& proto) {
 			Float2Offsets p2pos;
 			Float2Offsets translate;
 			Float2Offsets point;
+			uint16_t unk_pad = 0;  // extra uint16 padding per entry
 		};
 		uint16_t transId = (uint16_t)proto.transformIndices.size();
 		proto.transformIndices.emplace(out.hash,transId);
@@ -1158,7 +1304,7 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> Transform9Node::GetPinInfo() {
 
 
 
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set1_ps(64.f))));
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(),TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
@@ -1237,7 +1383,7 @@ Transform10Node::Transform10Node(RenderInstance& rend,ImFlow::StyleManager& styl
 		res.directionVector = v15;
 		res.position = _mm_sub_ps(v11, _mm_add_ps((__m128)_mm_shuffle_ps(v16,v16, 78), (__m128)v16));
 
-		res.inputSize = size.size;
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 
 		render.transformResults.push_back(res);
 		return res;
@@ -1281,10 +1427,10 @@ void Transform10Node::Export(RuiExportPrototype& proto) {
 	ele.sourceNodeName = typeid(*this).name();
 #endif
 	ele.identifier = out.hash;
-	ele.dependencys = {p1parent.hash,p2parent.hash,p3parent.hash};
+	ele.dependencys = {p1parent.hash,p2parent.hash};
 	ele.callback = [p1parent,p1Pos,p2parent,p2Pos,p3parent,p3Pos,translate,point1,point2,out,size](RuiExportPrototype& proto) {
 		struct Transform10FileStruct {
-			uint8_t type = 7;
+			uint8_t type = 11;  // UI_ApplyThreePin
 			uint8_t count = 1;
 			uint16_t p1parent;
 			Float2Offsets p1pos;
@@ -1295,6 +1441,7 @@ void Transform10Node::Export(RuiExportPrototype& proto) {
 			Float2Offsets translate;
 			Float2Offsets point1;
 			Float2Offsets point2;
+			uint16_t unk_pad = 0;  // extra uint16 padding per entry
 		};
 		uint16_t transId = (uint16_t)proto.transformIndices.size();
 		proto.transformIndices.emplace(out.hash,transId);
@@ -1371,8 +1518,8 @@ Transform11Node::Transform11Node(RenderInstance& rend,ImFlow::StyleManager& styl
 
 
 		res = parent;
-		res.hash = outHash;
-		res.inputSize = size.size;
+		res.hash = outHash;  // restore our unique hash after copying parent
+		res.inputSize = _mm_shuffle_ps(size.size, size.size, _MM_SHUFFLE(3, 3, 0, 0));
 
 		__m128 v7 = _mm_set_ps(0,0,0,rot.value);
 
@@ -1440,7 +1587,6 @@ Transform11Node::Transform11Node(RenderInstance& rend,ImFlow::StyleManager& styl
 		res.position = _mm_add_ps(_mm_add_ps(_mm_shuffle_ps(v19,v19, 78), v19), res.position);
 		res.directionVector = v18;
 
-		render.transformResults.push_back(res);
 		return res;
 	});
 }
@@ -1473,13 +1619,13 @@ void Transform11Node::Export(RuiExportPrototype& proto) {
 	ele.sourceNodeName = typeid(*this).name();
 #endif
 	ele.identifier = out.hash;
-	ele.dependencys = {parent.hash};
+	ele.dependencys = {parent.hash,};
 	ele.callback = [parent,center,rot,out,size](RuiExportPrototype& proto) {
 		struct Transform11FileStruct {
 			uint8_t type = 1;
 			uint8_t count = 1;
 			uint16_t parent;
-			uint8_t type_ = 11;
+			uint8_t type_ = 12;  // UI_ApplyRotate, preceded by a HalfPin_Clone of the parent
 			uint8_t count_ = 1;
 			uint16_t parent_;
 			uint16_t rotation;
@@ -1510,13 +1656,12 @@ void Transform11Node::Export(RuiExportPrototype& proto) {
 }
 
 std::vector<std::shared_ptr<ImFlow::PinProto>> Transform11Node::GetPinInfo(){
-	static std::vector<std::shared_ptr<ImFlow::PinProto>> info;
-	if(info.size()) return info;
-
+	// Built fresh per node -- a static list is shared by every instance.
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(), TransformSize(_mm_set_ps(64.f, 0.f, 0.f, 64.f))));
 	info.push_back(std::make_shared<ImFlow::InPinProto<TransformResult>>("Parent",ImFlow::ConnectionFilter::SameType(), TransformResult()));
 	info.push_back(std::make_shared<ImFlow::InPinProto<Float2Variable>>("Rotation Origin",ImFlow::ConnectionFilter::SameType(), Float2Variable(.5f,.5f))); 
 	info.push_back(std::make_shared<ImFlow::InPinProto<FloatVariable>>("Rotation",ImFlow::ConnectionFilter::SameType(), FloatVariable(0.f)));
-	info.push_back(std::make_shared<ImFlow::InPinProto<TransformSize>>("Size",ImFlow::ConnectionFilter::SameType(), TransformSize(_mm_set1_ps(64.f))));
 	info.push_back(std::make_shared<ImFlow::OutPinProto<TransformResult>>("Out"));
 	return info;
 	
@@ -1526,6 +1671,7 @@ void AddTransformNodes(NodeEditor& editor) {
 	//editor.AddNodeType<Transform0Node>();
 	editor.AddNodeType<Transform1Node>();
 	editor.AddNodeType<Transform2Node>();
+	editor.AddNodeType<LetterboxTransformNode>();
 	editor.AddNodeType<Transform3Node>();
 	editor.AddNodeType<Transform4Node>();
 	editor.AddNodeType<Transform5Node>();
@@ -1535,6 +1681,4 @@ void AddTransformNodes(NodeEditor& editor) {
 	editor.AddNodeType<Transform9Node>();
 	editor.AddNodeType<Transform10Node>();
 	editor.AddNodeType<Transform11Node>();
-	//editor.AddNodeType<Transform12Node>();
-	//editor.AddNodeType<Transform13Node>();
 }

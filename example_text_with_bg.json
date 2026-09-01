@@ -1,0 +1,151 @@
+{
+  "Nodes": [
+    {
+      "Name": "Size Constant",
+      "Category": "Constant",
+      "Min": 0.0,
+      "Max": 2000.0,
+      "Value_0": 500.0,
+      "Value_1": 500.0,
+      "Value_2": 150.0,
+      "Value_3": 150.0,
+      "PosX": -800.0,
+      "PosY": -200.0,
+      "Id": 10
+    },
+    {
+      "Name": "Vector2 Constant",
+      "Category": "Constant",
+      "Min": 0.0,
+      "Max": 1.0,
+      "Value_X": 0.5,
+      "Value_Y": 0.12,
+      "PosX": -800.0,
+      "PosY": -50.0,
+      "Id": 11
+    },
+    {
+      "Name": "Transform 2",
+      "Category": "Transform",
+      "PosX": -500.0,
+      "PosY": -100.0,
+      "Id": 12
+    },
+    {
+      "Name": "Color Constant",
+      "Category": "Constant",
+      "Value_Red": 0.03,
+      "Value_Green": 0.06,
+      "Value_Blue": 0.14,
+      "Value_Alpha": 0.75,
+      "PosX": -500.0,
+      "PosY": -300.0,
+      "Id": 1
+    },
+    {
+      "Name": "Render Image Image Mask",
+      "Category": "Image Render",
+      "Layer": 0,
+      "PosX": -150.0,
+      "PosY": -200.0,
+      "Id": 2
+    },
+    {
+      "Name": "Float Constant",
+      "Category": "Constant",
+      "Min": 0.0,
+      "Max": 128.0,
+      "Value": 40.0,
+      "PosX": -800.0,
+      "PosY": 200.0,
+      "Id": 13
+    },
+    {
+      "Name": "Text Style",
+      "Category": "Text Render",
+      "FontName": "DefaultRegularFont",
+      "PosX": -500.0,
+      "PosY": 150.0,
+      "Id": 3
+    },
+    {
+      "Name": "String Constant",
+      "Category": "Constant",
+      "Value": "Hello World",
+      "PosX": -500.0,
+      "PosY": 350.0,
+      "Id": 4
+    },
+    {
+      "Name": "Text Size",
+      "Category": "Text Render",
+      "PosX": -150.0,
+      "PosY": 250.0,
+      "Id": 5
+    },
+    {
+      "Name": "Text Render",
+      "Category": "Text Render",
+      "Layer": 1,
+      "PosX": 200.0,
+      "PosY": 150.0,
+      "Id": 6
+    }
+  ],
+  "Links": [
+    {
+      "LeftNode": 10,
+      "LeftPin": "Value",
+      "RightNode": 12,
+      "RightPin": "Size"
+    },
+    {
+      "LeftNode": 11,
+      "LeftPin": "Value",
+      "RightNode": 12,
+      "RightPin": "Val_0"
+    },
+    {
+      "LeftNode": 12,
+      "LeftPin": "Out",
+      "RightNode": 2,
+      "RightPin": "Transform"
+    },
+    {
+      "LeftNode": 1,
+      "LeftPin": "Value",
+      "RightNode": 2,
+      "RightPin": "Main Color"
+    },
+    {
+      "LeftNode": 13,
+      "LeftPin": "Value",
+      "RightNode": 3,
+      "RightPin": "Size"
+    },
+    {
+      "LeftNode": 3,
+      "LeftPin": "Style",
+      "RightNode": 5,
+      "RightPin": "Style_0"
+    },
+    {
+      "LeftNode": 4,
+      "LeftPin": "Value",
+      "RightNode": 5,
+      "RightPin": "text"
+    },
+    {
+      "LeftNode": 5,
+      "LeftPin": "Text Data",
+      "RightNode": 6,
+      "RightPin": "Data"
+    },
+    {
+      "LeftNode": 12,
+      "LeftPin": "Out",
+      "RightNode": 6,
+      "RightPin": "Parent"
+    }
+  ]
+}

@@ -78,6 +78,7 @@ public:
     [[nodiscard]] const ImVec2& origin() const { return m_origin; }
     [[nodiscard]] bool hovered() const { return m_hovered; }
     [[nodiscard]] const ImVec2& scroll() const { return m_scroll; }
+    ImVec2& scrollRef() { return m_scroll; }
     ImGuiContext* getRawContext() { return m_ctx; }
     ImDrawListSplitter& getSplitter() { return m_splitter; }
     void setFontDensity();
@@ -209,8 +210,10 @@ inline void ContainedContext::end()
     if (ImGui::IsKeyPressed(m_config.reset_zoom_key, false))
         m_scaleTarget = m_config.default_zoom;
 
-    // Scrolling
-    if (m_hovered && !m_anyItemActive && ImGui::IsMouseDragging(m_config.scroll_button, 0.f))
+    // Scrolling (middle mouse or right-click drag)
+    bool middleDrag = ImGui::IsMouseDragging(ImGuiMouseButton_Middle, 0.f);
+    bool rightDrag = ImGui::IsMouseDragging(ImGuiMouseButton_Right, 0.f);
+    if (m_hovered && (middleDrag || rightDrag))
     {
         m_scroll += ImGui::GetIO().MouseDelta / m_scale;
     }

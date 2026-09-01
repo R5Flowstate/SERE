@@ -1,99 +1,8 @@
 #include "ArgumentNodes.h"
-#include "Imgui/imgui_stdlib.h"
+#include "imgui/imgui_stdlib.h"
 #include "Imgui/ImNodeFlow.h"
 #include "CustomImGuiWidgets.h"
 
-
-namespace {
-
-template<typename T>
-T GetArgumentValue(RenderInstance& render, const std::string& argName, const T& fallback) {
-	if (render.arguments.contains(argName) && render.arguments[argName].type() == typeid(T))
-		return std::any_cast<T>(render.arguments[argName]);
-	return fallback;
-}
-
-void AddVector2Default(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator, const Vector2& val) {
-	rapidjson::Value defaultValue(rapidjson::kObjectType);
-	defaultValue.AddMember("X", val.x, allocator);
-	defaultValue.AddMember("Y", val.y, allocator);
-	
-	obj.AddMember("DefaultValue", defaultValue, allocator);
-}
-
-void AddVector3Default(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator, const Vector3& val) {
-	rapidjson::Value defaultValue(rapidjson::kObjectType);
-	defaultValue.AddMember("X", val.x, allocator);
-	defaultValue.AddMember("Y", val.y, allocator);
-	defaultValue.AddMember("Z", val.z, allocator);
-	obj.AddMember("DefaultValue", defaultValue, allocator);
-}
-
-void AddColorDefault(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator, const Color& val) {
-	rapidjson::Value defaultValue(rapidjson::kObjectType);
-	defaultValue.AddMember("Red", val.red, allocator);
-	defaultValue.AddMember("Green", val.green, allocator);
-	defaultValue.AddMember("Blue", val.blue, allocator);
-	defaultValue.AddMember("Alpha", val.alpha, allocator);
-	obj.AddMember("DefaultValue", defaultValue, allocator);
-}
-
-void RestoreIntDefault(RenderInstance& render, const std::string& argName, rapidjson::GenericObject<false, rapidjson::Value> obj) {
-	if (obj.HasMember("DefaultValue") && obj["DefaultValue"].IsInt())
-		render.arguments[argName] = obj["DefaultValue"].GetInt();
-}
-
-void RestoreBoolDefault(RenderInstance& render, const std::string& argName, rapidjson::GenericObject<false, rapidjson::Value> obj) {
-	if (!obj.HasMember("DefaultValue"))
-		return;
-	if (obj["DefaultValue"].IsBool())
-		render.arguments[argName] = static_cast<int>(obj["DefaultValue"].GetBool());
-	else if (obj["DefaultValue"].IsInt())
-		render.arguments[argName] = obj["DefaultValue"].GetInt();
-}
-
-void RestoreFloatDefault(RenderInstance& render, const std::string& argName, rapidjson::GenericObject<false, rapidjson::Value> obj) {
-	if (obj.HasMember("DefaultValue") && obj["DefaultValue"].IsNumber())
-		render.arguments[argName] = obj["DefaultValue"].GetFloat();
-}
-
-void RestoreStringDefault(RenderInstance& render, const std::string& argName, rapidjson::GenericObject<false, rapidjson::Value> obj) {
-	if (obj.HasMember("DefaultValue") && obj["DefaultValue"].IsString())
-		render.arguments[argName] = std::string(obj["DefaultValue"].GetString());
-}
-
-void RestoreVector2Default(RenderInstance& render, const std::string& argName, rapidjson::GenericObject<false, rapidjson::Value> obj) {
-	if (!obj.HasMember("DefaultValue") || !obj["DefaultValue"].IsObject())
-		return;
-	const rapidjson::Value& val = obj["DefaultValue"];
-	if (val.HasMember("X") && val["X"].IsNumber() && val.HasMember("Y") && val["Y"].IsNumber())
-		render.arguments[argName] = Vector2(val["X"].GetFloat(), val["Y"].GetFloat());
-}
-
-void RestoreVector3Default(RenderInstance& render, const std::string& argName, rapidjson::GenericObject<false, rapidjson::Value> obj) {
-	if (!obj.HasMember("DefaultValue") || !obj["DefaultValue"].IsObject())
-		return;
-	const rapidjson::Value& val = obj["DefaultValue"];
-	if (val.HasMember("X") && val["X"].IsNumber() && val.HasMember("Y") && val["Y"].IsNumber() && val.HasMember("Z") && val["Z"].IsNumber())
-		render.arguments[argName] = Vector3(val["X"].GetFloat(), val["Y"].GetFloat(), val["Z"].GetFloat());
-}
-
-void RestoreColorDefault(RenderInstance& render, const std::string& argName, rapidjson::GenericObject<false, rapidjson::Value> obj) {
-	if (!obj.HasMember("DefaultValue") || !obj["DefaultValue"].IsObject())
-		return;
-	const rapidjson::Value& val = obj["DefaultValue"];
-	if (val.HasMember("Red") && val["Red"].IsNumber() &&
-		val.HasMember("Green") && val["Green"].IsNumber() &&
-		val.HasMember("Blue") && val["Blue"].IsNumber() &&
-		val.HasMember("Alpha") && val["Alpha"].IsNumber()) {
-		render.arguments[argName] = Color(
-			val["Red"].GetFloat(),
-			val["Green"].GetFloat(),
-			val["Blue"].GetFloat(),
-			val["Alpha"].GetFloat());
-	}
-}
-}
 
 
 IntArgNode::IntArgNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
@@ -111,7 +20,6 @@ IntArgNode::IntArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjs
 
 	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
 		argName = obj["ArgName"].GetString();
-	RestoreIntDefault(render, argName, obj);
 
 }
 
@@ -134,7 +42,6 @@ void IntArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapi
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
 	obj.AddMember("ArgName",argName,allocator);
-	obj.AddMember("DefaultValue", GetArgumentValue<int>(render, argName, 0), allocator);
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
@@ -162,7 +69,6 @@ BoolArgNode::BoolArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rapid
 	
 	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
 		argName = obj["ArgName"].GetString();
-	RestoreBoolDefault(render, argName, obj);
 
 }
 
@@ -187,7 +93,6 @@ void BoolArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rap
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
 	obj.AddMember("ArgName",argName,allocator);
-	obj.AddMember("DefaultValue", GetArgumentValue<int>(render, argName, 0) != 0, allocator);
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
@@ -215,7 +120,6 @@ FloatArgNode::FloatArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rap
 
 	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
 		argName = obj["ArgName"].GetString();
-	RestoreFloatDefault(render, argName, obj);
 
 }
 
@@ -237,7 +141,6 @@ void FloatArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, ra
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
 	obj.AddMember("ArgName",argName,allocator);
-	obj.AddMember("DefaultValue", GetArgumentValue<float>(render, argName, 0.f), allocator);
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
@@ -265,7 +168,6 @@ GametimeArgNode::GametimeArgNode(RenderInstance& rend,ImFlow::StyleManager& styl
 
 	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
 		argName = obj["ArgName"].GetString();
-	RestoreFloatDefault(render, argName, obj);
 
 }
 
@@ -287,7 +189,6 @@ void GametimeArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
 	obj.AddMember("ArgName",argName,allocator);
-	obj.AddMember("DefaultValue", GetArgumentValue<float>(render, argName, 0.f), allocator);
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
@@ -318,7 +219,6 @@ Float2ArgNode::Float2ArgNode(RenderInstance& rend,ImFlow::StyleManager& style, r
 
 	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
 		argName = obj["ArgName"].GetString();
-	RestoreVector2Default(render, argName, obj);
 
 }
 
@@ -338,7 +238,6 @@ void Float2ArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, r
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
 	obj.AddMember("ArgName",argName,allocator);
-	AddVector2Default(obj, allocator, GetArgumentValue<Vector2>(render, argName, Vector2(0.f, 0.f)));
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
@@ -369,7 +268,6 @@ Float3ArgNode::Float3ArgNode(RenderInstance& rend,ImFlow::StyleManager& style, r
 
 	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
 		argName = obj["ArgName"].GetString();
-	RestoreVector3Default(render, argName, obj);
 
 }
 
@@ -389,7 +287,6 @@ void Float3ArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, r
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
 	obj.AddMember("ArgName",argName,allocator);
-	AddVector3Default(obj, allocator, GetArgumentValue<Vector3>(render, argName, Vector3(0.f, 0.f, 0.f)));
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
@@ -407,7 +304,7 @@ ColorArgNode::ColorArgNode(RenderInstance& rend,ImFlow::StyleManager& style):Rui
 
 	getOut<ColorVariable>("Value")->behaviour([this]() {
 		Color val(1.f,1.f,1.f,1.f);
-		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(Color)))
+		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(int)))
 			val = std::any_cast<Color>(render.arguments[argName]);
 		return ColorVariable(
 			val,
@@ -419,19 +316,17 @@ ColorArgNode::ColorArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rap
 
 	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
 		argName = obj["ArgName"].GetString();
-	RestoreColorDefault(render, argName, obj);
 
 }
 
 void ColorArgNode::draw() {
-	ImGui::PushItemWidth(180);
+	ImGui::PushItemWidth(90);
 	ImGui::InputText("Name",&argName);
-
 	std::any& any = render.arguments[argName];
-	Color val = Color(1.f,1.f,1.f,1.f);
+	Color val = Color(0.f,0.f,0.f,1.f);
 	if(any.type()==typeid(Color))
 		val = std::any_cast<Color>(any);
-	ImGui::ColorEdit4("Default Value",&val.red);
+	ImGui::ColorPicker4("Default Value",&val.red);
 	render.arguments[argName] = val;
 	ImGui::PopItemWidth();
 }
@@ -440,13 +335,10 @@ void ColorArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, ra
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
 	obj.AddMember("ArgName",argName,allocator);
-	AddColorDefault(obj, allocator, GetArgumentValue<Color>(render, argName, Color(1.f, 1.f, 1.f, 1.f)));
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
 void ColorArgNode::Export(RuiExportPrototype& proto) {
-	if(!(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(Color))))
-		render.arguments[argName] = Color(1.f,1.f,1.f,1.f);
 	proto.arguments.emplace(argName,VariableType::COLOR_ALPHA);
 }
 
@@ -471,7 +363,6 @@ StringArgNode::StringArgNode(RenderInstance& rend,ImFlow::StyleManager& style, r
 
 	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
 		argName = obj["ArgName"].GetString();
-	RestoreStringDefault(render, argName, obj);
 }
 
 void StringArgNode::draw() {
@@ -490,7 +381,6 @@ void StringArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, r
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
 	obj.AddMember("ArgName",argName,allocator);
-	obj.AddMember("DefaultValue", GetArgumentValue<std::string>(render, argName, ""), allocator);
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
@@ -526,7 +416,7 @@ void AssetArgNode::Export(RuiExportPrototype& proto) {
 	ele.identifier = out.name;
 	ele.callback =[this](RuiExportPrototype& proto) {
 		auto& out = getOut<AssetVariable>("Value")->val();
-		proto.codeLines.push_back(std::format("{} = funcs->LoadAsset(inst,data->{});",out.GetFormattedName(proto),argName));
+		proto.codeLines.push_back(std::format("{} = funcs->LoadAsset(inst, {}, data->{}, 0ull);",out.GetFormattedName(proto),out.GetFormattedName(proto),argName));
 	};
 	proto.codeElements.push_back(ele);
 }
@@ -535,77 +425,10 @@ AssetArgNode::AssetArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rap
 
 	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
 		argName = obj["ArgName"].GetString();
-	RestoreStringDefault(render, argName, obj);
 
 }
 
 void AssetArgNode::draw() {
-	ImGui::PushItemWidth(90);
-	ImGui::InputText("Name",&argName);
-	std::string val = "white";
-	if(render.arguments.contains(argName)&&(render.arguments[argName].type() == typeid(std::string)))
-		val = std::any_cast<std::string>(render.arguments[argName]);
-	uint32_t hash = loadAsset(val.c_str());
-	if (AtlasImageButton("AssetButton", hash)) {
-		ImGui::OpenPopup("Default Value");
-	}
-	AssetSelectionPopup("Default Value",&hash);
-	val = imageAssetMap[hash].name;
-	render.arguments[argName] = val;
-	ImGui::PopItemWidth();
-}
-
-void AssetArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
-	obj.AddMember("Name",name,allocator);
-	obj.AddMember("Category",category,allocator);
-	obj.AddMember("ArgName",argName,allocator);
-	obj.AddMember("DefaultValue", GetArgumentValue<std::string>(render, argName, "white"), allocator);
-	RuiBaseNode::Serialize(obj,allocator);
-}
-
-std::vector<std::shared_ptr<ImFlow::PinProto>> AssetArgNode::GetPinInfo() {
-	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
-	info.push_back(std::make_shared<ImFlow::OutPinProto<AssetVariable>>("Value"));
-	return info;
-}
-
-
-UiHandleArgNode::UiHandleArgNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
-
-	getOut<AssetVariable>("Value")->behaviour([this]() {
-		std::string val = "white";
-		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(std::string)))
-			val = std::any_cast<std::string>(render.arguments[argName]);
-		return AssetVariable(val,Variable::UniqueName());
-	});
-}
-
-void UiHandleArgNode::Export(RuiExportPrototype& proto) {
-	proto.arguments.emplace(argName,VariableType::IMAGE);
-	auto& out = getOut<AssetVariable>("Value")->val();
-	proto.AddDataVariable(out);
-	ExportElement<std::string> ele;
-#if _DEBUG
-	ele.sourceNodeName = typeid(*this).name();
-#endif
-	ele.dependencys = { argName };
-	ele.identifier = out.name;
-	ele.callback =[this](RuiExportPrototype& proto) {
-		auto& out = getOut<AssetVariable>("Value")->val();
-		proto.codeLines.push_back(std::format("{} = funcs->LoadAsset(inst,data->{});",out.GetFormattedName(proto),argName));
-	};
-	proto.codeElements.push_back(ele);
-}
-
-UiHandleArgNode::UiHandleArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):UiHandleArgNode(rend,style){
-
-	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
-		argName = obj["ArgName"].GetString();
-	RestoreStringDefault(render, argName, obj);
-
-}
-
-void UiHandleArgNode::draw() {
 	ImGui::PushItemWidth(90);
 	ImGui::InputText("Name",&argName);
 	std::string val = "white";
@@ -621,31 +444,436 @@ void UiHandleArgNode::draw() {
 	ImGui::PopItemWidth();
 }
 
-void UiHandleArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+void AssetArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
 	obj.AddMember("ArgName",argName,allocator);
-	obj.AddMember("DefaultValue", GetArgumentValue<std::string>(render, argName, "white"), allocator);
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
-std::vector<std::shared_ptr<ImFlow::PinProto>> UiHandleArgNode::GetPinInfo() {
+std::vector<std::shared_ptr<ImFlow::PinProto>> AssetArgNode::GetPinInfo() {
 	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
 	info.push_back(std::make_shared<ImFlow::OutPinProto<AssetVariable>>("Value"));
 	return info;
 }
 
 
+UiHandleArgNode::UiHandleArgNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+
+	getOut<IntVariable>("Value")->behaviour([this]() {
+		int val = 0;
+		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(int)))
+			val = std::any_cast<int>(render.arguments[argName]);
+		return IntVariable(val,argName);
+	});
+}
+
+void UiHandleArgNode::Export(RuiExportPrototype& proto) {
+	proto.arguments.emplace(argName,VariableType::UIHANDLE);
+}
+
+UiHandleArgNode::UiHandleArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):UiHandleArgNode(rend,style){
+
+	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
+		argName = obj["ArgName"].GetString();
+
+}
+
+void UiHandleArgNode::draw() {
+	ImGui::PushItemWidth(90);
+	ImGui::InputText("Name",&argName);
+	std::any& any = render.arguments[argName];
+	int val = 0;
+	if(any.type()==typeid(int))
+		val = std::any_cast<int>(any);
+	ImGui::InputInt("Default Value",&val);
+	render.arguments[argName] = val;
+	ImGui::PopItemWidth();
+}
+
+void UiHandleArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	obj.AddMember("ArgName",argName,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> UiHandleArgNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::OutPinProto<IntVariable>>("Value"));
+	return info;
+}
+
+WalltimeArgNode::WalltimeArgNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+	getOut<WallTimeVariable>("Value")->behaviour([this]() {
+		uint64_t val = 0;
+		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(uint64_t)))
+			val = std::any_cast<uint64_t>(render.arguments[argName]);
+		return WallTimeVariable(val,argName);
+	});
+}
+
+WalltimeArgNode::WalltimeArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):WalltimeArgNode(rend,style) {
+	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
+		argName = obj["ArgName"].GetString();
+}
+
+void WalltimeArgNode::draw() {
+	ImGui::PushItemWidth(90);
+	ImGui::InputText("Name",&argName);
+	std::any& any = render.arguments[argName];
+	uint64_t val = 0;
+	if(any.type()==typeid(uint64_t))
+		val = std::any_cast<uint64_t>(any);
+	ImGui::InputScalar("Default Value", ImGuiDataType_U64, &val);
+	render.arguments[argName] = val;
+	ImGui::PopItemWidth();
+}
+
+void WalltimeArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	obj.AddMember("ArgName",argName,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+void WalltimeArgNode::Export(RuiExportPrototype& proto) {
+	proto.arguments.emplace(argName,VariableType::WALLTIME);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> WalltimeArgNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::OutPinProto<WallTimeVariable>>("Value"));
+	return info;
+}
+
+ImageArgNode::ImageArgNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+	getOut<AssetVariable>("Value")->behaviour([this]() {
+		std::string val = "white";
+		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(std::string)))
+			val = std::any_cast<std::string>(render.arguments[argName]);
+		return AssetVariable(val,Variable::UniqueName());
+	});
+}
+
+void ImageArgNode::Export(RuiExportPrototype& proto) {
+	proto.arguments.emplace(argName,VariableType::IMAGE);
+	auto& out = getOut<AssetVariable>("Value")->val();
+	proto.AddDataVariable(out);
+	ExportElement<std::string> ele;
+#if _DEBUG
+	ele.sourceNodeName = typeid(*this).name();
+#endif
+	ele.dependencys = { argName };
+	ele.identifier = out.name;
+	ele.callback =[this](RuiExportPrototype& proto) {
+		auto& out = getOut<AssetVariable>("Value")->val();
+		proto.codeLines.push_back(std::format("{} = funcs->LoadAsset(inst, {}, data->{}, 0ull);",out.GetFormattedName(proto),out.GetFormattedName(proto),argName));
+	};
+	proto.codeElements.push_back(ele);
+}
+
+ImageArgNode::ImageArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):ImageArgNode(rend,style){
+	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
+		argName = obj["ArgName"].GetString();
+}
+
+void ImageArgNode::draw() {
+	ImGui::PushItemWidth(90);
+	ImGui::InputText("Name",&argName);
+	std::string val = "white";
+	if(render.arguments.contains(argName)&&(render.arguments[argName].type() == typeid(std::string)))
+		val = std::any_cast<std::string>(render.arguments[argName]);
+	uint32_t hash = loadAsset(val.c_str());
+	if (AtlasImageButton("AssetButton", imageAssetMap[hash])) {
+		ImGui::OpenPopup("Asset Selection");
+	}
+	AssetSelectionPopup("Default Value",&hash);
+	val = imageAssetMap[hash].name;
+	render.arguments[argName] = val;
+	ImGui::PopItemWidth();
+}
+
+void ImageArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	obj.AddMember("ArgName",argName,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> ImageArgNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::OutPinProto<AssetVariable>>("Value"));
+	return info;
+}
+
+FontFaceArgNode::FontFaceArgNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+	getOut<StringVariable>("Value")->behaviour([this]() {
+		std::string val = "";
+		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(std::string)))
+			val = std::any_cast<std::string>(render.arguments[argName]);
+		return StringVariable(val,argName);
+	});
+}
+
+FontFaceArgNode::FontFaceArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):FontFaceArgNode(rend,style) {
+	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
+		argName = obj["ArgName"].GetString();
+}
+
+void FontFaceArgNode::draw() {
+	ImGui::PushItemWidth(90);
+	ImGui::InputText("Name",&argName);
+	std::any& any = render.arguments[argName];
+	std::string val = "";
+	if(any.type()==typeid(std::string))
+		val = std::any_cast<std::string>(any);
+	ImGui::InputText("Default Value",&val);
+	render.arguments[argName] = val;
+	ImGui::PopItemWidth();
+}
+
+void FontFaceArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	obj.AddMember("ArgName",argName,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+void FontFaceArgNode::Export(RuiExportPrototype& proto) {
+	proto.arguments.emplace(argName,VariableType::FONT_FACE);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> FontFaceArgNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::OutPinProto<StringVariable>>("Value"));
+	return info;
+}
+
+FontHashArgNode::FontHashArgNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+	getOut<IntVariable>("Value")->behaviour([this]() {
+		int val = 0;
+		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(int)))
+			val = std::any_cast<int>(render.arguments[argName]);
+		return IntVariable(val,argName);
+	});
+}
+
+FontHashArgNode::FontHashArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):FontHashArgNode(rend,style) {
+	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
+		argName = obj["ArgName"].GetString();
+}
+
+void FontHashArgNode::draw() {
+	ImGui::PushItemWidth(90);
+	ImGui::InputText("Name",&argName);
+	std::any& any = render.arguments[argName];
+	int val = 0;
+	if(any.type()==typeid(int))
+		val = std::any_cast<int>(any);
+	ImGui::InputInt("Default Value",&val);
+	render.arguments[argName] = val;
+	ImGui::PopItemWidth();
+}
+
+void FontHashArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	obj.AddMember("ArgName",argName,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+void FontHashArgNode::Export(RuiExportPrototype& proto) {
+	proto.arguments.emplace(argName,VariableType::FONT_HASH);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> FontHashArgNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::OutPinProto<IntVariable>>("Value"));
+	return info;
+}
+
+ArrayArgNode::ArrayArgNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+	getOut<IntVariable>("Value")->behaviour([this]() {
+		return IntVariable(0,argName);
+	});
+}
+
+ArrayArgNode::ArrayArgNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):ArrayArgNode(rend,style) {
+	if(obj.HasMember("ArgName")&&obj["ArgName"].IsString())
+		argName = obj["ArgName"].GetString();
+}
+
+void ArrayArgNode::draw() {
+	ImGui::PushItemWidth(90);
+	ImGui::InputText("Name",&argName);
+	if(!render.arguments.contains(argName) || render.arguments[argName].type()!=typeid(uint64_t))
+		render.arguments[argName] = (uint64_t)0;
+	ImGui::Text("array slot (8 bytes)");
+	ImGui::PopItemWidth();
+}
+
+void ArrayArgNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	obj.AddMember("ArgName",argName,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+void ArrayArgNode::Export(RuiExportPrototype& proto) {
+	proto.arguments.emplace(argName,VariableType::ARRAY);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> ArrayArgNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::OutPinProto<IntVariable>>("Value"));
+	return info;
+}
+
+LocalizeNode::LocalizeNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+	std::string outName = Variable::UniqueName();
+	getOut<StringVariable>("Value")->behaviour([this, outName]() {
+		StringVariable key = getInVal<StringVariable>("Key");
+		return StringVariable(key.value, outName);
+	});
+}
+
+LocalizeNode::LocalizeNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):LocalizeNode(rend,style) {}
+
+void LocalizeNode::draw() {}
+
+void LocalizeNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+void LocalizeNode::Export(RuiExportPrototype& proto) {
+	auto out = getOut<StringVariable>("Value")->val();
+	auto key = getInVal<StringVariable>("Key");
+	proto.AddDataVariable(key);
+	proto.AddDataVariable(out);
+	ExportElement<std::string> ele;
+#if _DEBUG
+	ele.sourceNodeName = typeid(*this).name();
+#endif
+	ele.identifier = out.name;
+	ele.dependencys = { key.name };
+	ele.callback = [out, key](RuiExportPrototype& proto) {
+		if (proto.varsInDataStruct.contains(out.name) || proto.arguments.contains(out.name))
+			proto.codeLines.push_back(std::format("{} = funcs->Localize(inst, {}, 0, 0, 0, 0, 0);", out.GetFormattedName(proto), key.GetFormattedName(proto)));
+		else
+			proto.codeLines.push_back(std::format("const char* {} = funcs->Localize(inst, {}, 0, 0, 0, 0, 0);", out.GetFormattedName(proto), key.GetFormattedName(proto)));
+	};
+	proto.codeElements.push_back(ele);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> LocalizeNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::InPinProto<StringVariable>>("Key", ImFlow::ConnectionFilter::SameType(), StringVariable("")));
+	info.push_back(std::make_shared<ImFlow::OutPinProto<StringVariable>>("Value"));
+	return info;
+}
+
+SNPrintFNode::SNPrintFNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+	std::string outName = Variable::UniqueName();
+	getOut<StringVariable>("Value")->behaviour([this, outName]() {
+		StringVariable fmt = getInVal<StringVariable>("Format");
+		StringVariable arg = getInVal<StringVariable>("Arg");
+		return StringVariable(fmt.value, outName);
+	});
+}
+
+SNPrintFNode::SNPrintFNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):SNPrintFNode(rend,style) {}
+
+void SNPrintFNode::draw() {}
+
+void SNPrintFNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+void SNPrintFNode::Export(RuiExportPrototype& proto) {
+	auto out = getOut<StringVariable>("Value")->val();
+	auto fmt = getInVal<StringVariable>("Format");
+	auto arg = getInVal<StringVariable>("Arg");
+	proto.AddDataVariable(fmt);
+	proto.AddDataVariable(arg);
+	proto.AddDataVariable(out);
+	ExportElement<std::string> ele;
+#if _DEBUG
+	ele.sourceNodeName = typeid(*this).name();
+#endif
+	ele.identifier = out.name;
+	ele.dependencys = { fmt.name, arg.name };
+	ele.callback = [out, fmt, arg](RuiExportPrototype& proto) {
+		if (proto.varsInDataStruct.contains(out.name) || proto.arguments.contains(out.name))
+			proto.codeLines.push_back(std::format("{} = funcs->SNPrintF(inst, {}, {});", out.GetFormattedName(proto), fmt.GetFormattedName(proto), arg.GetFormattedName(proto)));
+		else
+			proto.codeLines.push_back(std::format("const char* {} = funcs->SNPrintF(inst, {}, {});", out.GetFormattedName(proto), fmt.GetFormattedName(proto), arg.GetFormattedName(proto)));
+	};
+	proto.codeElements.push_back(ele);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> SNPrintFNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::InPinProto<StringVariable>>("Format", ImFlow::ConnectionFilter::SameType(), StringVariable("%s")));
+	info.push_back(std::make_shared<ImFlow::InPinProto<StringVariable>>("Arg", ImFlow::ConnectionFilter::SameType(), StringVariable("")));
+	info.push_back(std::make_shared<ImFlow::OutPinProto<StringVariable>>("Value"));
+	return info;
+}
+
+SetHiddenNode::SetHiddenNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {}
+
+SetHiddenNode::SetHiddenNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):SetHiddenNode(rend,style) {}
+
+void SetHiddenNode::draw() {}
+
+void SetHiddenNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+void SetHiddenNode::Export(RuiExportPrototype& proto) {
+	BoolVariable cond = getInVal<BoolVariable>("Hidden");
+	proto.AddDataVariable(IntVariable(cond.value, cond.name));
+	ExportElement<std::string> ele;
+#if _DEBUG
+	ele.sourceNodeName = typeid(*this).name();
+#endif
+	ele.identifier = Variable::UniqueName();
+	ele.dependencys = { cond.name };
+	ele.callback = [cond](RuiExportPrototype& proto) {
+		proto.codeLines.push_back(std::format("if({}) funcs->SetHidden(inst);", cond.GetFormattedName(proto)));
+	};
+	proto.codeElements.push_back(ele);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> SetHiddenNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::InPinProto<BoolVariable>>("Hidden", ImFlow::ConnectionFilter::SameType(), BoolVariable(false)));
+	return info;
+}
+
 void AddArgumentNodes(NodeEditor& editor) {
 	editor.AddNodeType<IntArgNode>();
 	editor.AddNodeType<BoolArgNode>();
 	editor.AddNodeType<FloatArgNode>();
 	editor.AddNodeType<GametimeArgNode>();
+	editor.AddNodeType<WalltimeArgNode>();
 	editor.AddNodeType<Float2ArgNode>();
 	editor.AddNodeType<Float3ArgNode>();
 	editor.AddNodeType<ColorArgNode>();
 	editor.AddNodeType<StringArgNode>();
 	editor.AddNodeType<AssetArgNode>();
+	editor.AddNodeType<ImageArgNode>();
 	editor.AddNodeType<UiHandleArgNode>();
-
+	editor.AddNodeType<FontFaceArgNode>();
+	editor.AddNodeType<FontHashArgNode>();
+	editor.AddNodeType<ArrayArgNode>();
+	editor.AddNodeType<LocalizeNode>();
+	editor.AddNodeType<SNPrintFNode>();
+	editor.AddNodeType<SetHiddenNode>();
 }

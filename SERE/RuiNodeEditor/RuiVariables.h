@@ -2,7 +2,6 @@
 
 #include <string>
 #include <format>
-#include <variant>
 #include "Util.h"
 #include "ImageAtlas.h"
 
@@ -22,8 +21,12 @@ enum class VariableType : uint8_t {
 	FLOAT3 = 0x7,
 	COLOR_ALPHA = 0x8,
 	GAMETIME = 0x9,
-	FLOAT_UNK = 0xA,
-	IMAGE = 0xB,
+	WALLTIME = 0xA,
+	UIHANDLE = 0xB,
+	IMAGE = 0xC,
+	FONT_FACE = 0xD,
+	FONT_HASH = 0xE,
+	ARRAY = 0xF,
 	ASSET_HANDLE = 0xFF
 };
 
@@ -34,8 +37,6 @@ struct BoolVariable;
 struct FloatVariable;
 struct Float2Variable;
 struct Float3Variable;
-struct TransformSize;
-struct MathVariable;
 struct ColorVariable;
 struct StringVariable;
 struct AssetVariable;
@@ -121,61 +122,6 @@ struct Float3Variable :Variable {
 	}
 };
 
-struct TransformSize :Variable {
-
-	TransformSize() :Variable("") {
-		size = _mm_set1_ps(128.f);
-	}
-	TransformSize(__m128 size_, std::string name = "") :Variable(name) {
-		size = size_;
-	}
-	__m128 size;
-	std::string Literal() const override {
-		float sizef[4];
-		_mm_store_ps(sizef, size);
-		return std::format("_mm_set_ps({},{},{},{})", sizef[3], sizef[2], sizef[1], sizef[0]);
-	}
-};
-
-enum class MathVariableType {
-	FLOAT,
-	FLOAT2,
-	FLOAT3,
-	SIZE
-};
-
-struct MathVariable {
-	std::variant<FloatVariable, Float2Variable, Float3Variable, TransformSize> value;
-
-	MathVariable() :value(FloatVariable(0.f)) {}
-	MathVariable(const FloatVariable& val) :value(val) {}
-	MathVariable(const Float2Variable& val) :value(val) {}
-	MathVariable(const Float3Variable& val) :value(val) {}
-	MathVariable(const TransformSize& val) :value(val) {}
-
-	MathVariableType Type() const {
-		if (std::holds_alternative<FloatVariable>(value))
-			return MathVariableType::FLOAT;
-		if (std::holds_alternative<Float2Variable>(value))
-			return MathVariableType::FLOAT2;
-		if (std::holds_alternative<Float3Variable>(value))
-			return MathVariableType::FLOAT3;
-		return MathVariableType::SIZE;
-	}
-
-	bool IsConstant() const {
-		return std::visit([](const auto& val) { return val.IsConstant(); }, value);
-	}
-
-	std::string Name() const {
-		return std::visit([](const auto& val) { return val.name; }, value);
-	}
-
-	std::string GetFormattedName(RuiExportPrototype& proto) const {
-		return std::visit([&proto](const auto& val) { return val.GetFormattedName(proto); }, value);
-	}
-};
-
 struct ColorVariable :Variable {
 	Color value;
 	ColorVariable(Color val, std::string name = "") :Variable(name), value(val) {
@@ -221,3 +167,27 @@ struct AssetVariable :Variable {
 	}
 };
 
+struct WallTimeVariable :Variable {
+	uint64_t value;
+	WallTimeVariable(uint64_t val = 0, std::string name = "") :Variable(name), value(val) {}
+	std::string Literal() const override {
+		return std::format("{}ull", value);
+	}
+};
+
+// TransformSize stores a 2x2 direction matrix as __m128: (m00, m10, m01, m11)
+// For axis-aligned rectangles: (width, 0, 0, height)
+// Engine's Translate handler multiplies val0/val3 vectors through this matrix
+struct TransformSize :Variable {
+
+	TransformSize() :Variable("") {
+		size = _mm_set_ps(128.f, 0.f, 0.f, 128.f); // (128, 0, 0, 128) = 128x128 axis-aligned
+	}
+	TransformSize(__m128 size_, std::string name = "") :Variable(name) {
+		size = size_;
+	}
+	__m128 size;
+	std::string Literal() const override {
+		return std::format("_mm_set_ps({},{},{},{})", size.m128_f32[3], size.m128_f32[2], size.m128_f32[1], size.m128_f32[0]);
+	}
+};

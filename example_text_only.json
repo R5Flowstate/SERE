@@ -1,0 +1,71 @@
+{
+  "Nodes": [
+    {
+      "Name": "Float Constant",
+      "Category": "Constant",
+      "Min": 0.0,
+      "Max": 128.0,
+      "Value": 48.0,
+      "PosX": -800.0,
+      "PosY": 0.0,
+      "Id": 1
+    },
+    {
+      "Name": "Text Style",
+      "Category": "Text Render",
+      "FontName": "DefaultRegularFont",
+      "PosX": -500.0,
+      "PosY": 0.0,
+      "Id": 2
+    },
+    {
+      "Name": "String Constant",
+      "Category": "Constant",
+      "Value": "Hello World",
+      "PosX": -500.0,
+      "PosY": 200.0,
+      "Id": 3
+    },
+    {
+      "Name": "Text Size",
+      "Category": "Text Render",
+      "PosX": -150.0,
+      "PosY": 100.0,
+      "Id": 4
+    },
+    {
+      "Name": "Text Render",
+      "Category": "Text Render",
+      "Layer": 0,
+      "PosX": 200.0,
+      "PosY": 100.0,
+      "Id": 5
+    }
+  ],
+  "Links": [
+    {
+      "LeftNode": 1,
+      "LeftPin": "Value",
+      "RightNode": 2,
+      "RightPin": "Size"
+    },
+    {
+      "LeftNode": 2,
+      "LeftPin": "Style",
+      "RightNode": 4,
+      "RightPin": "Style_0"
+    },
+    {
+      "LeftNode": 3,
+      "LeftPin": "Value",
+      "RightNode": 4,
+      "RightPin": "text"
+    },
+    {
+      "LeftNode": 4,
+      "LeftPin": "Text Data",
+      "RightNode": 5,
+      "RightPin": "Data"
+    }
+  ]
+}

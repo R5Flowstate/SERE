@@ -176,3 +176,133 @@ private:
 	std::string argName;
 };
 
+class WalltimeArgNode : public RuiBaseNode
+{
+public:
+	static inline std::string name = "Walltime Arg";
+	static inline std::string category = "Argument";
+
+	explicit WalltimeArgNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit WalltimeArgNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+private:
+	std::string argName;
+};
+
+class ImageArgNode : public RuiBaseNode
+{
+public:
+	static inline std::string name = "Image Arg";
+	static inline std::string category = "Argument";
+
+	explicit ImageArgNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit ImageArgNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+private:
+	std::string argName;
+};
+
+class FontFaceArgNode : public RuiBaseNode
+{
+public:
+	static inline std::string name = "Font Face Arg";
+	static inline std::string category = "Argument";
+
+	explicit FontFaceArgNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit FontFaceArgNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+private:
+	std::string argName;
+};
+
+class FontHashArgNode : public RuiBaseNode
+{
+public:
+	static inline std::string name = "Font Hash Arg";
+	static inline std::string category = "Argument";
+
+	explicit FontHashArgNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit FontHashArgNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+private:
+	std::string argName;
+};
+
+class ArrayArgNode : public RuiBaseNode
+{
+public:
+	static inline std::string name = "Array Arg";
+	static inline std::string category = "Argument";
+
+	explicit ArrayArgNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit ArrayArgNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+private:
+	std::string argName;
+};
+
+class LocalizeNode : public RuiBaseNode
+{
+public:
+	static inline std::string name = "Localize";
+	static inline std::string category = "Code";
+
+	explicit LocalizeNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit LocalizeNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+};
+
+class SNPrintFNode : public RuiBaseNode
+{
+public:
+	static inline std::string name = "SNPrintF";
+	static inline std::string category = "Code";
+
+	explicit SNPrintFNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit SNPrintFNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+};
+
+class SetHiddenNode : public RuiBaseNode
+{
+public:
+	static inline std::string name = "Set Hidden";
+	static inline std::string category = "Code";
+
+	explicit SetHiddenNode(RenderInstance& prot,ImFlow::StyleManager& styles);
+	explicit SetHiddenNode(RenderInstance& prot,ImFlow::StyleManager& styles, rapidjson::GenericObject<false,rapidjson::Value> obj);
+	void draw() override;
+	void Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj,rapidjson::Document::AllocatorType& allocator) override;
+	void Export(RuiExportPrototype& proto) override;
+
+	static std::vector<std::shared_ptr<ImFlow::PinProto>> GetPinInfo();
+};
+

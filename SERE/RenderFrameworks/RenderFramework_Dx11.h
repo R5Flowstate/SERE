@@ -1,8 +1,8 @@
 #pragma once
 
-#include "RenderFramework.h"
+#include "RenderFrameWork.h"
 #include <d3d11.h>
-#include <SDL3/SDL.h>
+
 
 static const DXGI_FORMAT s_PakToDxgiFormat[] =
 {
@@ -111,8 +111,7 @@ public:
 
 	void* GetTextureView(size_t id);
 	void* GetRuiView();
-
-	void* GetWindow();
+	bool CapturePreviewPng(std::vector<uint8_t>& out, int& width, int& height) override;
 
 private:
 	ID3D11Device*            g_pd3dDevice = nullptr;
@@ -121,8 +120,8 @@ private:
 	bool                     g_SwapChainOccluded = false;
 
 	ID3D11RenderTargetView*  g_mainRenderTargetView = nullptr;
+	WNDCLASSEXW wc;
 	HWND hwnd;
-	SDL_Window* window;
 	
 	ID3D11SamplerState* samplerState = nullptr;
 

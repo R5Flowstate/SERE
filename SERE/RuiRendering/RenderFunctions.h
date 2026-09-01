@@ -1,9 +1,13 @@
 #pragma once
 
 #include "RuiNodeEditor/RuiNodeEditor.h"
-#include <immintrin.h>
+#include <intrin.h>
 
 struct AssetInputData {
+	// Widgets can clip against another transform's quad, and that quad may be
+	// rotated -- the intersection is a convex polygon, so one widget can be a
+	// shape a single quad cannot. Zero means no clip.
+	uint64_t clipHash = 0;
 	ColorVariable mainColor;
 	ColorVariable maskColor;
 	ColorVariable tertColor;
@@ -19,6 +23,10 @@ struct AssetInputData {
 	Float2Variable maskTranslate;
 	Float2Variable maskSize;
 	FloatVariable maskRotation;
+	ColorVariable tint;
+	FloatVariable hue;
+	FloatVariable saturation;
+	FloatVariable lightness;
 	int flags;
 	TransformResult transform;
 	AssetInputData():
@@ -37,6 +45,10 @@ struct AssetInputData {
 		maskTranslate(0.f,0.f),
 		maskSize(1.f,1.f),
 		maskRotation(0.f),
+		tint(1.f,1.f,1.f,1.f),
+		hue(0.f),
+		saturation(1.f),
+		lightness(0.f),
 		flags(0),
 		transform()
 	{ }
@@ -60,6 +72,10 @@ struct AssetCircleInputData {
 	Float2Variable ellipseSize;
 	FloatVariable innerMask;
 	FloatVariable vingette;
+	ColorVariable tint;
+	FloatVariable hue;
+	FloatVariable saturation;
+	FloatVariable lightness;
 	int flags;
 	TransformResult transform;
 	AssetCircleInputData():
@@ -79,6 +95,10 @@ struct AssetCircleInputData {
 		ellipseSize(1.f,1.f),
 		innerMask(1.f),
 		vingette(0.f),
+		tint(1.f,1.f,1.f,1.f),
+		hue(0.f),
+		saturation(1.f),
+		lightness(0.f),
 		flags(0x1),
 		transform()
 	{}
@@ -100,13 +120,18 @@ struct TextStyleData {
 	FloatVariable boltness;
 	FloatVariable blur;
 	FloatVariable style_32;
+	ColorVariable tint;
+	FloatVariable hue;
+	FloatVariable saturation;
+	FloatVariable lightness;
+	FloatVariable kerning;
 	TextStyleData():
 		mainColor(1.f,1.f,1.f,1.f),
 		scndColor(0.f,0.f,0.f,0.f),
 		tertColor(0.f,0.f,0.f,0.f),
 		blend(1.f),
 		premul(0.f),
-		fontIndex(9),
+		fontIndex(0),
 		dropShadowHardness(0.f),
 		dropShadowOffset(1.f,1.f),
 		dropShadowBlur(0.f),
@@ -115,7 +140,12 @@ struct TextStyleData {
 		backgroundSize(0.f),
 		boltness(0.f),
 		blur(0.f),
-		style_32(0.f)
+		style_32(0.f),
+		tint(1.f,1.f,1.f,1.f),
+		hue(0.f),
+		saturation(1.f),
+		lightness(0.f),
+		kerning(0.f)
 	{ }
 };
 
@@ -138,6 +168,9 @@ struct TextInputData {
 	Float2Variable minSize;
 	Float2Variable maxSize;
 	TextStyleData styles[4];
+	// The engine dereferences all four font faces whether the text uses them or
+	// not, so an undriven slot must resolve to slot 0's face, never to face 0.
+	bool styleDriven[4];
 	std::vector<InlineImage_t> inlineImages;
 	std::vector<TextLine_t> textLines;
 	std::string sizeName;
@@ -148,6 +181,7 @@ struct TextInputData {
 		minSize(0.f,0.f),
 		maxSize(10000000.f,10000000.f),
 		styles{{},{},{},{}},
+		styleDriven{true,false,false,false},
 		float_0(0.f),
 		lastLine(0.f)
 		{}

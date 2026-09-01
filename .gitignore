@@ -361,6 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/SERE/Assets
+/SERE/Assets/image_names.txt
 /build
-.idea/
+/docs/FEATURE_PROPOSALS.md
+/docs/RUI_TRANSFORM_REFERENCE.md
+/examples

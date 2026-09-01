@@ -2,12 +2,11 @@
 #include <string>
 #include "Imgui/imgui.h"
 #include "Imgui/imgui_stdlib.h"
+#include "ThirdParty/nativefiledialog-extended/src/include/nfd.hpp"
 #include "ThirdParty/rapidjson/rapidjson.h"
 #include "ThirdParty/rapidjson/prettywriter.h"
 #include "ThirdParty/rapidjson/ostreamwrapper.h"
 #include "ThirdParty/rapidjson/istreamwrapper.h"
-#include <SDL3/SDL.h>
-#include <fstream>
 
 class Settings {
 	struct RuiSize_t {
@@ -21,26 +20,26 @@ private:
 
 
 	std::string titanfall2Path;
-	std::string customRpakPath;
+	std::string repakExePath;
+	bool autoDeploy = true;
 
 	int ruiWidth;
 	int ruiHeight;
 
 public:
 
-	Settings():visible(false),changed(false),titanfall2Path(""),customRpakPath(""),ruiWidth(1920),ruiHeight(1080) {
-		const bool loadedSettings = LoadFromFile();
-		const bool hasAssetPath = titanfall2Path.size() || customRpakPath.size();
-		changed = loadedSettings && hasAssetPath;
-		if(!hasAssetPath)
-			visible = true;
+	Settings():ruiWidth(1920),ruiHeight(1080),titanfall2Path(""),repakExePath(""),autoDeploy(true),changed(true),visible(true) {
+		LoadFromFile();
 	}
 
 	std::string GetTitanfall2Path() {
 		return titanfall2Path;
 	}
-	std::string GetCustomRpakPath() {
-		return customRpakPath;
+	std::string GetRepakExePath() {
+		return repakExePath;
+	}
+	bool GetAutoDeploy() {
+		return autoDeploy;
 	}
 	bool HasChanged() {
 		bool ret = changed;
@@ -62,57 +61,33 @@ public:
 		ImGui::Begin("Settings",&visible,ImGuiWindowFlags_NoDocking); 
 
 		ImGui::SeparatorText("GamePath");
-		ImGui::InputText("Titanfall 2 Path",&titanfall2Path);
+		ImGui::InputText("R5Flowstate Path",&titanfall2Path);
 		ImGui::SameLine();
 		if(ImGui::Button("Browse")) {
-			SDL_ShowOpenFolderDialog(
-				[](void* userdata, const char* const* filelist, int filter) {
-					auto* pathString = static_cast<std::string*>(userdata);
-
-					if (!filelist) {
-						SDL_Log("Folder dialog error: %s", SDL_GetError());
-						return;
-					}
-
-					if (!filelist[0]) {
-						SDL_Log("Folder selection cancelled");
-						return;
-					}
-
-					*pathString = filelist[0];
-				},
-				&titanfall2Path,
-				static_cast<SDL_Window*>(g_renderFramework->GetWindow()),
-				titanfall2Path.empty() ? nullptr : titanfall2Path.c_str(),
-				false
-			);
+			NFD::UniquePath path;
+			if (NFD::PickFolder(path, (nfdchar_t*)titanfall2Path.c_str()) == NFD_OKAY) {
+				titanfall2Path = std::string(path.get());
+			}
 		}
-
-		ImGui::InputText("Custom Rpak Path", &customRpakPath);
 		ImGui::SameLine();
-		if (ImGui::Button("Browse##customRpak")) {
-			SDL_ShowOpenFolderDialog(
-				[](void* userdata, const char* const* filelist, int filter) {
-					auto* pathString = static_cast<std::string*>(userdata);
-
-					if (!filelist) {
-						SDL_Log("Folder dialog error: %s", SDL_GetError());
-						return;
-					}
-
-					if (!filelist[0]) {
-						SDL_Log("Folder selection cancelled");
-						return;
-					}
-
-					*pathString = filelist[0];
-				},
-				&customRpakPath,
-				static_cast<SDL_Window*>(g_renderFramework->GetWindow()),
-				customRpakPath.empty() ? nullptr : customRpakPath.c_str(),
-				false
-			);
+		if(ImGui::Button("Apply")) {
+			changed = true;
+			SaveToFile();
+			printf("[SERE] Settings applied. Path: '%s'\n", titanfall2Path.c_str());
 		}
+
+		ImGui::SeparatorText("Repak");
+		ImGui::InputText("repak.exe Path",&repakExePath);
+		ImGui::SameLine();
+		if(ImGui::Button("Browse##repak")) {
+			nfdfilteritem_t filter("Executable","exe");
+			NFD::UniquePath rpath;
+			if (NFD::OpenDialog(rpath, &filter, 1) == NFD_OKAY) {
+				repakExePath = std::string(rpath.get());
+			}
+		}
+
+		ImGui::Checkbox("Auto create and deploy RPak on export", &autoDeploy);
 
 		ImGui::SeparatorText("Rui Size");
 
@@ -120,7 +95,6 @@ public:
 
 		ImGui::InputInt("Height", &ruiHeight, 1, 50);
 
-		
 		ImGui::End();
 		if (!visible) {
 			changed = true;
@@ -129,16 +103,16 @@ public:
 
 	}
 #undef GetObject
-	bool LoadFromFile() {
+	void LoadFromFile() {
 		std::ifstream file{"settings.json"};
 		if(!file.good())
-			return false;
+			return;
 		rapidjson::IStreamWrapper fileWrap(file);
 		rapidjson::Document doc;
 		doc.ParseStream(fileWrap);
-		if (doc.HasParseError() || !doc.IsObject()) {
+		if (!doc.IsObject()) {
 			file.close();
-			return false;
+			return;
 		}
 		rapidjson::GenericObject root = doc.GetObject();
 
@@ -151,11 +125,13 @@ public:
 		if (root.HasMember("GamePath") && root["GamePath"].IsString()) {
 			titanfall2Path = root["GamePath"].GetString();
 		}
-		if (root.HasMember("CustomRpakPath") && root["CustomRpakPath"].IsString()) {
-			customRpakPath = root["CustomRpakPath"].GetString();
+		if (root.HasMember("RepakExePath") && root["RepakExePath"].IsString()) {
+			repakExePath = root["RepakExePath"].GetString();
+		}
+		if (root.HasMember("AutoDeploy") && root["AutoDeploy"].IsBool()) {
+			autoDeploy = root["AutoDeploy"].GetBool();
 		}
 		file.close();
-		return true;
 	}
 
 	void SaveToFile() {
@@ -174,8 +150,11 @@ public:
 		writer.Key("GamePath");
 		writer.String(titanfall2Path);
 
-		writer.Key("CustomRpakPath");
-		writer.String(customRpakPath);
+		writer.Key("RepakExePath");
+		writer.String(repakExePath);
+
+		writer.Key("AutoDeploy");
+		writer.Bool(autoDeploy);
 
 		writer.EndObject();
 

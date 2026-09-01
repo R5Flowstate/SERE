@@ -9,26 +9,47 @@
 
 
 bool AtlasImageButton(const char* id, uint32_t hash,ImVec2 maxSize) {
-	return AtlasImageButton(id,imageAssetMap[hash],maxSize);
+	if (hash == INVALID_ASSET || !imageAssetMap.contains(hash)) {
+		// Missing asset (common under S21 UIIA until names resolve) — no insert/no crash.
+		ImGui::Button(id ? id : "missing", ImVec2(maxSize.x > 0 ? maxSize.x : 64.f, 32.f));
+		return false;
+	}
+	return AtlasImageButton(id, imageAssetMap.at(hash), maxSize);
 }
 
 bool AtlasImageButton(const char* id, const Asset_t& asset,ImVec2 maxSize) {
+	if (imageAtlases.empty() || asset.atlasIndex >= imageAtlases.size()) {
+		ImGui::Button(id ? id : "bad-atlas", ImVec2(64.f, 32.f));
+		return false;
+	}
 	const ImageAtlas& atlas = imageAtlases[asset.atlasIndex];
+	if (asset.imageIndex >= atlas.dimentions.size() || asset.imageIndex >= atlas.shaderData.size()) {
+		ImGui::Button(id ? id : "bad-img", ImVec2(64.f, 32.f));
+		return false;
+	}
 	const auto& dim = atlas.dimentions[asset.imageIndex];
 	const auto& shd = atlas.shaderData[asset.imageIndex];
+	if (dim.width == 0) {
+		ImGui::Button(id ? id : "zero-w", ImVec2(64.f, 32.f));
+		return false;
+	}
+	void* view = atlas.GetImageView();
+	if (!view) {
+		ImGui::Button(id ? id : "no-tex", ImVec2(64.f, 32.f));
+		return false;
+	}
 	const ImVec2 mins(shd.minX, shd.minY);
 	const ImVec2 maxs(shd.minX + shd.sizeX, shd.minY + shd.sizeY);
-	ImVec2 displaySize(maxSize.x, maxSize.x / dim.width * dim.height);
-	if (displaySize.y > maxSize.y)displaySize.y = maxSize.y;
-	return ImGui::ImageButton(id, (ImTextureRef)atlas.GetImageView(),
-		displaySize, mins, maxs);
-		
+	ImVec2 displaySize(maxSize.x, maxSize.x / (float)dim.width * (float)dim.height);
+	if (displaySize.y > maxSize.y) displaySize.y = maxSize.y;
+	const char* label = asset.name.empty() ? (id ? id : "asset") : asset.name.c_str();
+	return ImGui::ImageButton(label, (ImTextureRef)view, displaySize, mins, maxs);
 }
 
 
 void AssetSelectionPopup(const char* id, uint32_t* hash) {
 	static std::string search = "";
-	if (ImGui::BeginPopup(id, ImGuiWindowFlags_MenuBar)) {
+	if (ImGui::BeginPopup("Asset Selection", ImGuiWindowFlags_MenuBar)) {
 
 		if (ImGui::BeginMenuBar()) {
 			ImGui::Text("Search:");
@@ -38,20 +59,27 @@ void AssetSelectionPopup(const char* id, uint32_t* hash) {
 		}
 
 
+		// Cap draw count — full S21 uiia map is ~8k entries; drawing all AVs/hangs.
+		int shown = 0;
+		const int kMaxShown = 64;
 		ImGui::BeginTable("Assets", 6);
 		for (const auto& [assetHash, asset] : imageAssetMap) {
 			if (search.size() && !caseInsensitiveSearch(asset.name, search))
 				continue;
-
+			if (shown >= kMaxShown) {
+				ImGui::TableNextColumn();
+				ImGui::TextDisabled("... truncated (search to filter)");
+				break;
+			}
 			ImGui::TableNextColumn();
-			if(AtlasImageButton(asset.name.c_str(),asset)) {
+			if (AtlasImageButton(asset.name.c_str(), asset)) {
 				*hash = assetHash;
 				ImGui::CloseCurrentPopup();
-				break;
 			}
 			ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 100.f);
 			ImGui::Text("%s", asset.name.c_str());
 			ImGui::PopTextWrapPos();
+			shown++;
 		}
 		ImGui::EndTable();
 		ImGui::EndPopup();

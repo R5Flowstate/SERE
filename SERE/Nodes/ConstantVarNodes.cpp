@@ -1,6 +1,6 @@
 #include "ConstantVarNodes.h"
 #include "CustomImGuiWidgets.h"
-#include "Imgui/imgui_stdlib.h"
+#include "imgui/imgui_stdlib.h"
 
 
 
@@ -291,8 +291,8 @@ ColorVarNode::ColorVarNode(RenderInstance& rend,ImFlow::StyleManager& style, rap
 }
 
 void ColorVarNode::draw() {
-	ImGui::PushItemWidth(180);
-	ImGui::ColorEdit4("Value", value);
+	ImGui::PushItemWidth(90);
+	ImGui::ColorPicker4("Value",value);
 	ImGui::PopItemWidth();
 }
 
@@ -373,7 +373,11 @@ AssetVarNode::AssetVarNode(RenderInstance& rend,ImFlow::StyleManager& style, rap
 }
 
 void AssetVarNode::draw() {
-	if (AtlasImageButton("Open Selection", hash, ImVec2(200.f, 400.f))) {
+	if (hash == INVALID_ASSET || !imageAssetMap.contains(hash)) {
+		// Graph names like rui/gladiator_cards/... are UIMG-era; S21 map is uiia placeholders.
+		if (ImGui::Button("missing asset", ImVec2(120.f, 48.f)))
+			ImGui::OpenPopup("Asset Selection");
+	} else if (AtlasImageButton("Open Selection", hash, ImVec2(200.f, 400.f))) {
 		ImGui::OpenPopup("Asset Selection");
 	}
 	AssetSelectionPopup("Asset Selection",&hash);
@@ -383,7 +387,10 @@ void AssetVarNode::draw() {
 void AssetVarNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
-	obj.AddMember("AssetName",imageAssetMap[hash].name, allocator);
+	std::string assetName;
+	if (hash != INVALID_ASSET && imageAssetMap.contains(hash))
+		assetName = imageAssetMap.at(hash).name;
+	obj.AddMember("AssetName", rapidjson::Value(assetName.c_str(), allocator), allocator);
 	RuiBaseNode::Serialize(obj,allocator);
 }
 
@@ -395,9 +402,15 @@ void AssetVarNode::Export(RuiExportPrototype& proto) {
 	ele.sourceNodeName = typeid(*this).name();
 #endif
 	ele.identifier = out.name;
-	std::string assetName = imageAssetMap[hash].name;
+	std::string assetName;
+	if (hash != INVALID_ASSET && imageAssetMap.contains(hash))
+		assetName = imageAssetMap.at(hash).name;
+	if (assetName.starts_with("0x") || assetName.starts_with("0X")) {
+		printf("WARNING: Asset '%s' has no resolvable name - image won't display in-game. Atlas JSON needs 'name' fields.\n", assetName.c_str());
+	}
+	printf("[SERE] AssetConstant export: varName='%s' asset='%s'\n", out.name.c_str(), assetName.c_str());
 	ele.callback = [out,assetName](RuiExportPrototype& proto) {
-		proto.codeLines.push_back(std::format("{} = funcs->LoadAsset(inst,\"{}\");",out.GetFormattedName(proto),assetName));
+		proto.codeLines.push_back(std::format("{} = funcs->LoadAsset(inst, {}, \"{}\", 0ull);",out.GetFormattedName(proto),out.GetFormattedName(proto),assetName));
 	};
 	proto.codeElements.push_back(ele);
 }
@@ -408,19 +421,60 @@ std::vector<std::shared_ptr<ImFlow::PinProto>> AssetVarNode::GetPinInfo() {
 	return info;
 }
 
+ScreenBlurNode::ScreenBlurNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
+	hash = loadAsset("white");
+	std::string outName = Variable::UniqueName();
+	getOut<AssetVariable>("Value")->behaviour([this,outName]() {
+		return AssetVariable(hash,outName);
+	});
+}
+
+ScreenBlurNode::ScreenBlurNode(RenderInstance& rend,ImFlow::StyleManager& style, rapidjson::GenericObject<false,rapidjson::Value> obj):ScreenBlurNode(rend,style) {}
+
+void ScreenBlurNode::draw() {
+	ImGui::TextUnformatted("blurred backbuffer");
+	ImGui::TextDisabled("preview draws flat white");
+}
+
+void ScreenBlurNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
+	obj.AddMember("Name",name,allocator);
+	obj.AddMember("Category",category,allocator);
+	RuiBaseNode::Serialize(obj,allocator);
+}
+
+void ScreenBlurNode::Export(RuiExportPrototype& proto) {
+	const AssetVariable& out = getOut<AssetVariable>("Value")->val();
+	proto.AddDataVariable(out);
+	ExportElement<std::string> ele;
+#if _DEBUG
+	ele.sourceNodeName = typeid(*this).name();
+#endif
+	ele.identifier = out.name;
+	ele.callback = [out](RuiExportPrototype& proto) {
+		proto.codeLines.push_back(std::format("{} = -4; // UI_IMGREFIDX_SCREENBLUR",out.GetFormattedName(proto)));
+	};
+	proto.codeElements.push_back(ele);
+}
+
+std::vector<std::shared_ptr<ImFlow::PinProto>> ScreenBlurNode::GetPinInfo() {
+	std::vector<std::shared_ptr<ImFlow::PinProto>> info;
+	info.push_back(std::make_shared<ImFlow::OutPinProto<AssetVariable>>("Value"));
+	return info;
+}
+
 SizeVarNode::SizeVarNode(RenderInstance& rend,ImFlow::StyleManager& style):RuiBaseNode(name,category,GetPinInfo(),rend,style) {
 
 	minVal = 0;
-	maxVal = 128;
-	value[0] = 1.f;
-	value[1] = 1.f;
-	value[2] = 1.f;
-	value[3] = 1.f;
+	maxVal = 2048;
+	value[0] = 64.f;  // m00: width (for axis-aligned)
+	value[1] = 0.f;   // m10: 0 for axis-aligned
+	value[2] = 0.f;   // m01: 0 for axis-aligned
+	value[3] = 64.f;  // m11: height (for axis-aligned)
 
 	getOut<TransformSize>("Value")->behaviour([this]() {
 		TransformSize var;
 
-		var.size = _mm_loadu_ps(value);
+		var.size = _mm_load_ps(value);
 		return var;
 
 	});
@@ -486,5 +540,6 @@ void AddConstantVarNodes(NodeEditor& editor) {
 	editor.AddNodeType<ColorVarNode>();
 	editor.AddNodeType<StringVarNode>();
 	editor.AddNodeType<AssetVarNode>();
+	editor.AddNodeType<ScreenBlurNode>();
 	editor.AddNodeType<SizeVarNode>();
 }

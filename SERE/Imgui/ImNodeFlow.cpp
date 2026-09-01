@@ -68,17 +68,6 @@ namespace ImFlow {
         float headerH = ImGui::GetItemRectSize().y;
         float titleW = ImGui::GetItemRectSize().x;
 
-
-        // Content
-        ImGui::BeginGroup();
-        draw();
-        ImGui::Dummy(ImVec2(120.f, 0.f));
-        ImGui::EndGroup();
-
-        float maxWidth = ImGui::GetItemRectSize().x;
-
-        //ImGui::SameLine();
-
         // Inputs
         if (!m_ins.empty()) {
             ImGui::BeginGroup();
@@ -94,24 +83,34 @@ namespace ImFlow {
                 }
             }
             ImGui::EndGroup();
-            maxWidth = std::max(maxWidth,ImGui::GetItemRectSize().x);
+            ImGui::SameLine();
         }
+
+        // Content
+        ImGui::BeginGroup();
+        draw();
+        ImGui::Dummy(ImVec2(0.f, 0.f));
+        ImGui::EndGroup();
+        ImGui::SameLine();
 
         // Outputs
-
+        float maxW = 0.0f;
         for (auto &p: m_outs) {
-            maxWidth = std::max(maxWidth, p->calcWidth());
+            float w = p->calcWidth();
+            if (w > maxW)
+                maxW = w;
         }
         for (auto &p: m_dynamicOuts) {
-            maxWidth = std::max(maxWidth, p.second->calcWidth());
-
+            float w = p.second->calcWidth();
+            if (w > maxW)
+                maxW = w;
         }
         ImGui::BeginGroup();
         for (auto &p: m_outs) {
             // FIXME: This looks horrible
             if ((m_pos + ImVec2(titleW, 0) + m_inf->getGrid().scroll()).x <
-                ImGui::GetCursorPos().x + ImGui::GetWindowPos().x + maxWidth)
-                p->setPos(ImGui::GetCursorPos() + ImGui::GetWindowPos() + ImVec2(maxWidth - p->calcWidth(), 0.f));
+                ImGui::GetCursorPos().x + ImGui::GetWindowPos().x + maxW)
+                p->setPos(ImGui::GetCursorPos() + ImGui::GetWindowPos() + ImVec2(maxW - p->calcWidth(), 0.f));
             else
                 p->setPos(ImVec2((m_pos + ImVec2(titleW - p->calcWidth(), 0) + m_inf->getGrid().scroll()).x,
                                  ImGui::GetCursorPos().y + ImGui::GetWindowPos().y));
@@ -120,9 +119,9 @@ namespace ImFlow {
         for (auto &p: m_dynamicOuts) {
             // FIXME: This looks horrible
             if ((m_pos + ImVec2(titleW, 0) + m_inf->getGrid().scroll()).x <
-                ImGui::GetCursorPos().x + ImGui::GetWindowPos().x + maxWidth)
+                ImGui::GetCursorPos().x + ImGui::GetWindowPos().x + maxW)
                 p.second->setPos(
-                        ImGui::GetCursorPos() + ImGui::GetWindowPos() + ImVec2(maxWidth - p.second->calcWidth(), 0.f));
+                        ImGui::GetCursorPos() + ImGui::GetWindowPos() + ImVec2(maxW - p.second->calcWidth(), 0.f));
             else
                 p.second->setPos(
                         ImVec2((m_pos + ImVec2(titleW - p.second->calcWidth(), 0) + m_inf->getGrid().scroll()).x,
@@ -162,16 +161,21 @@ namespace ImFlow {
         }
         draw_list->AddRect(offset + m_pos - ptl, offset + m_pos + m_size + pbr, col, m_style->radius, 0, thickness);
 
-        if (ImGui::IsWindowHovered() && !ImGui::IsKeyDown(ImGuiKey_LeftCtrl) &&
-            ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_inf->on_selected_node())
-            selected(false);
-
         if (isHovered()) {
             m_inf->hoveredNode(this);
             if (mouseClickState) {
+                if (!ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && !isSelected()) {
+                    // Deselect all others when clicking a new node without Ctrl
+                    for (auto& [id, node] : m_inf->getNodes())
+                        node->selected(false);
+                }
                 selected(true);
                 m_inf->consumeSingleUseClick();
             }
+        }
+        else if (ImGui::IsWindowHovered() && !ImGui::IsKeyDown(ImGuiKey_LeftCtrl) &&
+            ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !m_inf->isBackgroundDragging()) {
+            selected(false);
         }
 
         if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Delete) && !ImGui::IsAnyItemActive() && isSelected())
@@ -193,6 +197,7 @@ namespace ImFlow {
             if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
                 m_dragged = false;
                 m_inf->draggingNode(false);
+                m_inf->notifyModified();
                 m_posTarget = m_pos;
             }
         }
@@ -239,64 +244,6 @@ namespace ImFlow {
         if ( ImGui::GetCurrentContext() == m_context.getRawContext() )
             return p + m_context.scroll();
         return ( p + m_context.scroll() ) * m_context.scale() + m_context.origin();
-    }
-
-    bool ImNodeFlow::nodeOverlapsMarquee(BaseNode* node, const ImVec2& selectMin, const ImVec2& selectMax)
-    {
-        const ImVec4& padding = node->getStyle()->padding;
-        ImVec2 nodeMin = grid2screen(node->getPos() - ImVec2(padding.x, padding.y));
-        ImVec2 nodeMax = grid2screen(node->getPos() + node->getSize() + ImVec2(padding.z, padding.w));
-
-        return nodeMin.x <= selectMax.x && nodeMax.x >= selectMin.x &&
-               nodeMin.y <= selectMax.y && nodeMax.y >= selectMin.y;
-    }
-
-    void ImNodeFlow::updateMarqueeSelection(ImDrawList* draw_list)
-    {
-        if (!m_marqueeSelecting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsWindowHovered() &&
-            !m_draggingNode && !m_dragOut && !m_hovering && on_free_space())
-        {
-            m_marqueeSelecting = true;
-            m_marqueeAdditive = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl);
-            m_marqueeStart = ImGui::GetMousePos();
-            m_marqueeEnd = m_marqueeStart;
-            consumeSingleUseClick();
-        }
-
-        if (!m_marqueeSelecting)
-            return;
-
-        m_marqueeEnd = ImGui::GetMousePos();
-        ImVec2 selectMin(std::min(m_marqueeStart.x, m_marqueeEnd.x), std::min(m_marqueeStart.y, m_marqueeEnd.y));
-        ImVec2 selectMax(std::max(m_marqueeStart.x, m_marqueeEnd.x), std::max(m_marqueeStart.y, m_marqueeEnd.y));
-        bool hasDragged = ImGui::IsMouseDragging(ImGuiMouseButton_Left);
-
-        if (hasDragged || ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-        {
-            for (auto& node : m_nodes)
-            {
-                bool overlaps = nodeOverlapsMarquee(node.second.get(), selectMin, selectMax);
-                if (m_marqueeAdditive)
-                {
-                    if (overlaps)
-                        node.second->selected(true);
-                }
-                else
-                {
-                    node.second->selected(overlaps);
-                }
-                node.second->updatePublicStatus();
-            }
-        }
-
-        if (hasDragged)
-        {
-            draw_list->AddRectFilled(selectMin, selectMax, IM_COL32(87, 155, 185, 45), 2.f);
-            draw_list->AddRect(selectMin, selectMax, IM_COL32(170, 210, 235, 190), 2.f, 0, 1.4f);
-        }
-
-        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-            m_marqueeSelecting = false;
     }
 
     void ImNodeFlow::addLink(std::shared_ptr<Link> &link) {
@@ -349,8 +296,10 @@ namespace ImFlow {
 
         // Remove "toDelete" nodes
         for (auto iter = m_nodes.begin(); iter != m_nodes.end();) {
-            if (iter->second->toDestroy())
+            if (iter->second->toDestroy()) {
                 iter = m_nodes.erase(iter);
+                notifyModified();
+            }
             else
                 ++iter;
         }
@@ -369,8 +318,10 @@ namespace ImFlow {
                         ImGui::OpenPopup("DroppedLinkPopUp");
                     }
                 }
-            } else
+            } else {
                 m_dragOut->createLink(m_hovering);
+                notifyModified();
+            }
             m_draggingExistingLink = false;
         }
 
@@ -408,7 +359,18 @@ namespace ImFlow {
                 m_dragOut = nullptr;
         }
 
-        updateMarqueeSelection(draw_list);
+        // Track when left-click starts on empty background
+        if (on_free_space() && !m_draggingNode && !m_dragOut &&
+            m_context.hovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            m_backgroundDragging = true;
+        }
+        // Pan while dragging
+        if (m_backgroundDragging && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f)) {
+            m_context.scrollRef() += ImGui::GetIO().MouseDelta / m_context.scale();
+        }
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+            m_backgroundDragging = false;
+        }
 
         // Right-click PopUp
         if (m_rightClickPopUp && ImGui::IsMouseClicked(ImGuiMouseButton_Right) && ImGui::IsWindowHovered()) {

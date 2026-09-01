@@ -11,14 +11,10 @@
 #include <algorithm>
 #include <functional>
 #include <unordered_map>
-#include <cstdint>
-#include <any>
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
 #include "imgui_bezier_math.h"
 #include "context_wrapper.h"
-#define RAPIDJSON_HAS_STDSTRING 1
-#include "ThirdParty/rapidjson/document.h"
 
 //#define ConnectionFilter_None       [](ImFlow::Pin* out, ImFlow::Pin* in){ return true; }
 //#define ConnectionFilter_SameType   [](ImFlow::Pin* out, ImFlow::Pin* in){ return out->getDataType() == in->getDataType(); }
@@ -491,6 +487,19 @@ namespace ImFlow
          * @return Const reference to editor's internal links list
          */
         const std::vector<std::weak_ptr<Link>>& getLinks() { return m_links; }
+        void clearAll() {
+            m_nodes.clear();
+            m_links.clear();
+            m_hoveredNode = nullptr;
+            m_hoveredNodeAux = nullptr;
+            m_hovering = nullptr;
+            m_dragOut = nullptr;
+            m_draggingNode = false;
+            m_draggingNodeNext = false;
+            m_draggingExistingLink = false;
+            m_backgroundDragging = false;
+            m_singleUseClick = false;
+        }
 
         /**
          * @brief <BR>Get zooming viewport
@@ -503,6 +512,7 @@ namespace ImFlow
          * @return [TRUE] if a Node is being dragged around the grid
          */
         [[nodiscard]] bool isNodeDragged() const { return m_draggingNode; }
+        [[nodiscard]] bool isBackgroundDragging() const { return m_backgroundDragging; }
 
         /**
          * @brief <BR>Get current style
@@ -529,6 +539,8 @@ namespace ImFlow
          * The new state will only be updated one at the start of each frame.
          */
         void draggingNode(bool state) { m_draggingNodeNext = state; }
+        void setOnModified(std::function<void()> cb) { m_onModified = cb; }
+        void notifyModified() { if (m_onModified) m_onModified(); }
 
         /**
          * @brief <BR>Set what pin is being hovered
@@ -574,9 +586,6 @@ namespace ImFlow
          */
         std::vector<std::string>& get_recursion_blacklist() { return m_pinRecursionBlacklist; }
     private:
-        void updateMarqueeSelection(ImDrawList* draw_list);
-        bool nodeOverlapsMarquee(BaseNode* node, const ImVec2& selectMin, const ImVec2& selectMax);
-
         std::string m_name;
         ContainedContext m_context;
 
@@ -593,18 +602,15 @@ namespace ImFlow
         BaseNode* m_hoveredNodeAux = nullptr;
 
         BaseNode* m_hoveredNode = nullptr;
-        bool m_draggingNode = false, m_draggingNodeNext = false,m_draggingExistingLink = false;
+        bool m_draggingNode = false, m_draggingNodeNext = false, m_draggingExistingLink = false;
+        bool m_backgroundDragging = false;
+        std::function<void()> m_onModified;
         Pin* m_hovering = nullptr;
         Pin* m_dragOut = nullptr;
 
         StyleManager m_styles;
 
         ImVec2 m_lastRightClickPos;
-
-        bool m_marqueeSelecting = false;
-        bool m_marqueeAdditive = false;
-        ImVec2 m_marqueeStart = ImVec2(0.f, 0.f);
-        ImVec2 m_marqueeEnd = ImVec2(0.f, 0.f);
     };
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -632,8 +638,6 @@ namespace ImFlow
          *          Must contain the body of the node. If left empty the node will only have input and output pins.
          */
         virtual void draw() {}
-
-        virtual bool CanCreateLink(Pin* pin, Pin* other) { return true; }
 
         /**
          * @brief <BR>Add an Input to the node
@@ -1014,7 +1018,7 @@ namespace ImFlow
 
         virtual void CreatePin(BaseNode* node,StyleManager& style) = 0;
         virtual bool CanCreateLink(PinProto* other) = 0;
-        [[nodiscard]] virtual  const std::type_info& getDataType() const = 0;
+        virtual [[nodiscard]] const std::type_info& getDataType() const = 0;
         virtual PinType GetPinType() const = 0;
     protected:
         PinProto(std::string n):name(n){}
@@ -1099,26 +1103,15 @@ namespace ImFlow
         void drawDecoration();
 
         /**
-         *@brief <BR>Draw the pins in node content(name,current value,value selection if unset)
-         */
-        virtual void drawNodeContent() = 0;
-
-
-        /**
          * @brief <BR>Used by output pins to calculate their values
          */
         virtual void resolve() {}
-
-        virtual std::any valueAny() { return {}; }
 
         /**
          * @brief <BR>Custom render function to override Pin appearance
          * @param r Function or lambda expression with new ImGui rendering
          */
         Pin* renderer(std::function<void(Pin* p)> r) { m_renderer = std::move(r); return this; }
-
-        Pin* visible(bool state) { m_visible = state; return this; }
-        [[nodiscard]] bool isVisible() const { return m_visible; }
 
         /**
          * @brief <BR>Create link between pins
@@ -1148,10 +1141,6 @@ namespace ImFlow
          * @return Weak_ptr reference to pin's link
          */
         virtual std::weak_ptr<Link> getLink() { return std::weak_ptr<Link>{}; }
-
-        virtual void LoadEmptyValue(rapidjson::Value& value){}
-        virtual void StoreEmptyValue(rapidjson::GenericValue<rapidjson::UTF8<>>& object, rapidjson::Document::AllocatorType& allocator){}
-
 
         /**
          * @brief <BR>Get pin's UID
@@ -1217,7 +1206,7 @@ namespace ImFlow
          * @brief <BR>Calculate pin's width pre-rendering
          * @return The with of the pin once it will be rendered
          */
-        float calcWidth() { return m_visible ? ImGui::CalcTextSize(m_proto->name.c_str()).x : 0.f; }
+        float calcWidth() { return ImGui::CalcTextSize(m_proto->name.c_str()).x; }
 
         /**
          * @brief <BR>Set pin's position
@@ -1233,7 +1222,6 @@ namespace ImFlow
         ImNodeFlow** m_inf;
         std::shared_ptr<PinStyle> m_style;
         std::function<void(Pin* p)> m_renderer;
-        bool m_visible = true;
     };
 
     /**
@@ -1288,8 +1276,6 @@ namespace ImFlow
         */
         void deleteLink() override { m_link.reset(); }
 
-        void LoadEmptyValue(rapidjson::Value& value) override{}
-        void StoreEmptyValue(rapidjson::GenericValue<rapidjson::UTF8<>>& object, rapidjson::Document::AllocatorType& allocator) override{}
         /**
          * @brief Specify if connections from an output on the same node are allowed
          * @param state New state of the flag
@@ -1312,7 +1298,7 @@ namespace ImFlow
          * @brief <BR>Get InPin's connection filter
          * @return InPin's connection filter configuration
          */
-        // [[nodiscard]] const std::function<bool(Pin*, Pin*)>& getFilter() const { return m_proto->filter; }
+        [[nodiscard]] const std::function<bool(Pin*, Pin*)>& getFilter() const { return m_proto->filter; }
 
         /**
          * @brief <BR>Get pin's data type (aka: \<T>)
@@ -1326,11 +1312,6 @@ namespace ImFlow
          */
         ImVec2 pinPoint() override { return m_pos + ImVec2(-m_style->extra.socket_padding, m_size.y / 2); }
 
-        void drawNodeContent() override
-        {
-            ImGui::Text("%s", m_proto->name.c_str());
-        }
-
         /**
          * @brief <BR>Get value carried by the connected link
          * @return Reference to the value of the connected OutPin. Or the default value if not connected
@@ -1338,7 +1319,6 @@ namespace ImFlow
         const T& val();
 
         void setEmptyVal(T& val){m_emptyVal = val;}
-
 
     private:
         std::shared_ptr<Link> m_link;
@@ -1371,11 +1351,6 @@ namespace ImFlow
         ~OutPin() override {
             std::vector<std::weak_ptr<Link>> links = std::move(m_links);
             for (auto &l: links) if (!l.expired()) l.lock()->right()->deleteLink();
-        }
-
-        void drawNodeContent() override
-        {
-            ImGui::Text("%s", m_proto->name.c_str());
         }
 
         /**
@@ -1412,8 +1387,6 @@ namespace ImFlow
          * @return Const reference to the internal value of the pin
          */
         const T& val();
-
-        std::any valueAny() override { return val(); }
 
         /**
          * @brief <BR>Set logic to calculate output value

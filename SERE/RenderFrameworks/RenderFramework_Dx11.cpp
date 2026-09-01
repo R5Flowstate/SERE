@@ -1,9 +1,12 @@
+#include <wincodec.h>
+#pragma comment(lib, "windowscodecs.lib")
+#include <objbase.h>
+#include <vector>
 #include "RenderFrameworks/RenderFramework_Dx11.h"
 #include "ThirdParty/DDSTextureLoader11.h"
 #include "Imgui/imgui_impl_dx11.h"
-#include "Imgui/imgui_impl_sdl3.h"
+#include "Imgui/imgui_impl_win32.h"
 
-#include <SDL3/SDL.h>
 #include <fstream>
 
 #include <d3dcompiler.h>
@@ -13,31 +16,61 @@
 
 UINT g_WinResizeWidth = 0, g_WinResizeHeight = 0;
 
+
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+// Win32 message handler
+// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
+// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
+// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
+// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
+LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+		return true;
+
+	switch (msg)
+	{
+	case WM_SIZE:
+		if (wParam == SIZE_MINIMIZED)
+			return 0;
+		g_WinResizeWidth = (UINT)LOWORD(lParam); // Queue resize
+		g_WinResizeHeight = (UINT)HIWORD(lParam);
+		return 0;
+	case WM_SYSCOMMAND:
+		if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
+			return 0;
+		break;
+	case WM_DESTROY:
+		::PostQuitMessage(0);
+		return 0;
+	}
+	return ::DefWindowProcW(hWnd, msg, wParam, lParam);
+}
+
+
 RenderFramework_Dx11::RenderFramework_Dx11() {
     // Create application window
-	if (!SDL_Init(SDL_INIT_VIDEO)) {
-		SDL_Log("Unable to initialize SDL: %s", SDL_GetError());
-	}
-	SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    //ImGui_ImplWin32_EnableDpiAwareness();
+    wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr),::LoadIcon(nullptr,MAKEINTRESOURCE(1)) , nullptr, nullptr, nullptr, L"SERE", ::LoadIcon(nullptr,MAKEINTRESOURCE(1))};
+    ::RegisterClassExW(&wc);
+    hwnd = ::CreateWindowW(wc.lpszClassName, L"SERE", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
 
-	window = SDL_CreateWindow("SERE", 1280, 800, window_flags);
-	SDL_PropertiesID props = SDL_GetWindowProperties(window);
-	hwnd = (HWND)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
-	
     // Initialize Direct3D
     if (!CreateDeviceD3D())
     {
-        CleanupDeviceD3D();        
+        CleanupDeviceD3D();
+        ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+        
     }
 
     // Show the window
-	SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-	SDL_ShowWindow(window);
-	SDL_StartTextInput(window);
-	SDL_MaximizeWindow(window);
-	SDL_SetHint(SDL_HINT_WINDOWS_ENABLE_MENU_MNEMONICS, "0"); // Disable ALT key mnemonics to avoid interfering with ImGui input handling
+    ::ShowWindow(hwnd, SW_SHOWMAXIMIZED);
+    ::UpdateWindow(hwnd);
+
     // Setup Platform/Renderer backends
-	ImGui_ImplSDL3_InitForD3D(window);
+    ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
 
 
@@ -46,36 +79,23 @@ RenderFramework_Dx11::RenderFramework_Dx11() {
 RenderFramework_Dx11::~RenderFramework_Dx11() {
 
 	CleanupDeviceD3D();
-	SDL_DestroyWindow(window);
+	::DestroyWindow(hwnd);
+	::UnregisterClassW(wc.lpszClassName, wc.hInstance);
 }
 
 void RenderFramework_Dx11::ImGuiDeInit() {
 	ImGui_ImplDX11_Shutdown();
-	ImGui_ImplSDL3_Shutdown();
+	ImGui_ImplWin32_Shutdown();
 }
 
 bool RenderFramework_Dx11::ShouldMainLoopRun() {
-	SDL_Event event;
-	while (SDL_PollEvent(&event))
+	MSG msg;
+	while (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
 	{
-		//if(	event.type == SDL_EVENT_KEY_DOWN)
-		//{
-		//	if (event.key.key == SDLK_LALT || event.key.key == SDLK_RALT)
-		//	{
-		//		continue;
-		//	}
-		//}
-		if (event.type == SDL_EVENT_QUIT)
+		::TranslateMessage(&msg);
+		::DispatchMessage(&msg);
+		if (msg.message == WM_QUIT)
 			return false;
-		if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
-			return false;
-		if (event.type == SDL_EVENT_WINDOW_RESIZED && event.window.windowID == SDL_GetWindowID(window))
-		{
-			// Release all outstanding references to the swap chain's buffers before resizing.
-			g_WinResizeWidth = (UINT)event.window.data1; // Queue resize
-			g_WinResizeHeight = (UINT)event.window.data2;
-		}
-		ImGui_ImplSDL3_ProcessEvent(&event);
 	}
 	return true;
 }
@@ -139,12 +159,12 @@ void RenderFramework_Dx11::CleanupRenderTarget()
 
 bool RenderFramework_Dx11::ImGuiStartFrame() {
     ImGui_ImplDX11_NewFrame();
-	ImGui_ImplSDL3_NewFrame();
+    ImGui_ImplWin32_NewFrame();
 
     if (g_SwapChainOccluded && g_pSwapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
     {
-		SDL_Delay(10);
-		return false;
+        ::Sleep(10);
+        return false;
     }
     g_SwapChainOccluded = false;
 
@@ -597,7 +617,10 @@ void RenderFramework_Dx11::RuiWriteStyleBuffer(std::vector<StyleDescriptorShader
 }
 
 void RenderFramework_Dx11::DrawIndexed(uint32_t count,uint32_t start,size_t* resources) {
-	ID3D11ShaderResourceView* resourceViews[5];
+	// Apex ui_ps.fxc resource binding:
+	// t0: fontTexture, t1: materialTexture0, t2-t6: unused
+	// t7: g_fontBounds, t8: g_imgBounds0, t9-t10: unused, t11: g_styles
+	ID3D11ShaderResourceView* resourceViews[12];
 	memset(resourceViews,0,sizeof(resourceViews));
 	if (resources[0] != ~0) {
 		resourceViews[0] = textures[resources[0]].view;
@@ -606,13 +629,13 @@ void RenderFramework_Dx11::DrawIndexed(uint32_t count,uint32_t start,size_t* res
 		resourceViews[1] = textures[resources[1]].view;
 	}
 	if (resources[2] != ~0) {
-		resourceViews[2] = buffers[resources[2]].view;
+		resourceViews[7] = buffers[resources[2]].view;
 	}
 	if (resources[3] != ~0) {
-		resourceViews[3] = buffers[resources[3]].view;
+		resourceViews[8] = buffers[resources[3]].view;
 	}
-	resourceViews[4] = styleDescriptorResourceView;
-	g_pd3dDeviceContext->PSSetShaderResources(0,5,resourceViews);
+	resourceViews[11] = styleDescriptorResourceView;
+	g_pd3dDeviceContext->PSSetShaderResources(0,12,resourceViews);
 	g_pd3dDeviceContext->DrawIndexed(count,start,0);
 }
 
@@ -620,12 +643,119 @@ void* RenderFramework_Dx11::GetTextureView(size_t id) {
 	return textures[id].view;
 }
 
+
+// --- PNG encode via WIC (ships with Windows; keeps SERE dependency-free) ---
+static bool EncodeBgraToPng(const uint8_t* bgra, int width, int height, std::vector<uint8_t>& out)
+{
+	bool comInitialisedHere = false;
+	HRESULT hrInit = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	if (SUCCEEDED(hrInit))
+		comInitialisedHere = true;
+	else if (hrInit != RPC_E_CHANGED_MODE)
+		return false;
+
+	bool ok = false;
+	IWICImagingFactory* factory = nullptr;
+	IWICBitmapEncoder* encoder = nullptr;
+	IWICBitmapFrameEncode* frame = nullptr;
+	IWICStream* stream = nullptr;
+	IStream* memStream = nullptr;
+
+	do {
+		if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+			IID_PPV_ARGS(&factory)))) break;
+		if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &memStream))) break;
+		if (FAILED(factory->CreateStream(&stream))) break;
+		if (FAILED(stream->InitializeFromIStream(memStream))) break;
+		if (FAILED(factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder))) break;
+		if (FAILED(encoder->Initialize(stream, WICBitmapEncoderNoCache))) break;
+		if (FAILED(encoder->CreateNewFrame(&frame, nullptr))) break;
+		if (FAILED(frame->Initialize(nullptr))) break;
+		if (FAILED(frame->SetSize((UINT)width, (UINT)height))) break;
+
+		WICPixelFormatGUID fmt = GUID_WICPixelFormat32bppBGRA;
+		if (FAILED(frame->SetPixelFormat(&fmt))) break;
+		if (FAILED(frame->WritePixels((UINT)height, (UINT)width * 4,
+			(UINT)width * 4 * (UINT)height, const_cast<BYTE*>(bgra)))) break;
+		if (FAILED(frame->Commit())) break;
+		if (FAILED(encoder->Commit())) break;
+
+		HGLOBAL hg = nullptr;
+		if (FAILED(GetHGlobalFromStream(memStream, &hg))) break;
+		SIZE_T size = GlobalSize(hg);
+		void* data = GlobalLock(hg);
+		if (!data) break;
+		out.assign((const uint8_t*)data, (const uint8_t*)data + size);
+		GlobalUnlock(hg);
+		ok = true;
+	} while (false);
+
+	if (frame) frame->Release();
+	if (encoder) encoder->Release();
+	if (stream) stream->Release();
+	if (memStream) memStream->Release();
+	if (factory) factory->Release();
+	if (comInitialisedHere) CoUninitialize();
+	return ok;
+}
+
 void* RenderFramework_Dx11::GetRuiView() {
 	return targetResourceView;
 }
 
-void* RenderFramework_Dx11::GetWindow() {
-	return window;
+// The RUI target is R32G32B32A32_FLOAT and not CPU readable, so copy it into a
+// staging texture, tonemap nothing (values are already display-referred), and
+// hand WIC a straight BGRA buffer.
+bool RenderFramework_Dx11::CapturePreviewPng(std::vector<uint8_t>& out, int& width, int& height)
+{
+	out.clear();
+	if (!targetTexture || !g_pd3dDevice || !g_pd3dDeviceContext)
+		return false;
+
+	D3D11_TEXTURE2D_DESC desc{};
+	targetTexture->GetDesc(&desc);
+	width = (int)desc.Width;
+	height = (int)desc.Height;
+
+	D3D11_TEXTURE2D_DESC stagingDesc = desc;
+	stagingDesc.Usage = D3D11_USAGE_STAGING;
+	stagingDesc.BindFlags = 0;
+	stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	stagingDesc.MiscFlags = 0;
+
+	ID3D11Texture2D* staging = nullptr;
+	if (FAILED(g_pd3dDevice->CreateTexture2D(&stagingDesc, nullptr, &staging)))
+		return false;
+
+	g_pd3dDeviceContext->CopyResource(staging, targetTexture);
+
+	D3D11_MAPPED_SUBRESOURCE mapped{};
+	if (FAILED(g_pd3dDeviceContext->Map(staging, 0, D3D11_MAP_READ, 0, &mapped))) {
+		staging->Release();
+		return false;
+	}
+
+	std::vector<uint8_t> bgra((size_t)desc.Width * desc.Height * 4);
+	for (uint32_t y = 0; y < desc.Height; y++) {
+		const float* src = (const float*)((const uint8_t*)mapped.pData + (size_t)y * mapped.RowPitch);
+		uint8_t* dst = bgra.data() + (size_t)y * desc.Width * 4;
+		for (uint32_t x = 0; x < desc.Width; x++) {
+			auto conv = [](float v) -> uint8_t {
+				if (!(v > 0.0f)) return 0;
+				if (v > 1.0f) v = 1.0f;
+				return (uint8_t)(v * 255.0f + 0.5f);
+			};
+			dst[x * 4 + 0] = conv(src[x * 4 + 2]);
+			dst[x * 4 + 1] = conv(src[x * 4 + 1]);
+			dst[x * 4 + 2] = conv(src[x * 4 + 0]);
+			dst[x * 4 + 3] = conv(src[x * 4 + 3]);
+		}
+	}
+
+	g_pd3dDeviceContext->Unmap(staging, 0);
+	staging->Release();
+
+	return EncodeBgraToPng(bgra.data(), (int)desc.Width, (int)desc.Height, out);
 }
 
 

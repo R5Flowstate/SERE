@@ -25,7 +25,7 @@ CPakFile::~CPakFile()
         SegmentCollection_t* const collection = &this->segmentCollections[i];
         if (collection->buffer)
         {
-            aligned_free_compat(collection->buffer);
+            _aligned_free(collection->buffer);
             collection->buffer = nullptr;
         }
     }
@@ -46,18 +46,29 @@ struct PakFileLoadState_t
 
 const bool CPakFile::ParseFileBuffer(const std::filesystem::path& path)
 {
-    if (!ParseFromFile(path, this->m_Buf))
+    printf("[SERE]   ParseFileBuffer: reading file...\n"); fflush(stdout);
+    if (!ParseFromFile(path, this->m_Buf)) {
+        printf("[SERE]   ERROR: ParseFromFile failed\n"); fflush(stdout);
         return false;
+    }
 
     m_FilePath = path.string();
 
-    // parse our initial header (subject to change)
+    printf("[SERE]   ParseFileBuffer: parsing header...\n"); fflush(stdout);
     ParsePakFileHeader(m_Buf.get());
 
+    const short pakVersion = reinterpret_cast<const short*>(m_Buf.get())[2];
+    printf("[SERE]   ParseFileBuffer: rpak version=%d\n", pakVersion); fflush(stdout);
 
+    printf("[SERE]   ParseFileBuffer: LoadAndPatchPakFileData...\n"); fflush(stdout);
+    bool result;
+    if (pakVersion >= 8)
+        result = this->LoadAndPatchPakFileData<PakHdr_v8_t, PakAsset_v8_t>();
+    else
+        result = this->LoadAndPatchPakFileData<PakHdr_v7_t, PakAsset_v6_t>();
+    printf("[SERE]   ParseFileBuffer: LoadAndPatch returned %d\n", result); fflush(stdout);
 
-    return this->LoadAndPatchPakFileData<PakHdr_v7_t, PakAsset_v6_t>();
-
+    return result;
 }
 
 const bool CPakFile::ParsePakFileHeader(const char* buf)
@@ -74,11 +85,10 @@ const bool CPakFile::ParsePakFileHeader(const char* buf, const short version)
     if (nullptr != m_pHeader)
         delete m_pHeader;
 
-
-    m_pHeader = new PakHdr_t(reinterpret_cast<const PakHdr_v7_t*>(buf));
-
-
-
+    if (version >= 8)
+        m_pHeader = new PakHdr_t(reinterpret_cast<const PakHdr_v8_t*>(buf));
+    else
+        m_pHeader = new PakHdr_t(reinterpret_cast<const PakHdr_v7_t*>(buf));
 
     return true;
 }
@@ -376,7 +386,8 @@ const bool CPakFile::DecompressFileBuffer(const char* fileBuffer, std::shared_pt
         {
 
             // get pakhdr back from compressed buffer
-			MEMCPY_S(dcmpBuf.get(), header->pakHdrSize, fileBuffer, header->pakHdrSize);
+            memcpy_s(dcmpBuf.get(), header->pakHdrSize, fileBuffer, header->pakHdrSize);
+
             if (outBuffer->get() != nullptr)
                 outBuffer->reset();
 
@@ -398,10 +409,14 @@ const bool CPakFile::DecompressFileBuffer(const char* fileBuffer, std::shared_pt
         // allocate a buffer for just the compressed file data
         // since the oodle decomp util func needs just the compressed data
         std::unique_ptr<char[]> cmpBuf = std::make_unique<char[]>(compressedDataSize);
-        MEMCPY_S(cmpBuf.get(), compressedDataSize, fileBuffer + header->pakHdrSize, compressedDataSize);
+        memcpy_s(cmpBuf.get(), compressedDataSize, fileBuffer + header->pakHdrSize, compressedDataSize);
+
         uint64_t decodeSize = header->dcmpSize;
 
-        std::unique_ptr<char[]> data = RTech::DecompressStreamedBuffer(std::move(cmpBuf), decodeSize, eCompressionType::OODLE);
+        // Oodle needs both lengths, and only this scope knows the compressed
+        // one, so decompress here rather than through the streamed helper.
+        std::unique_ptr<char[]> data = std::make_unique<char[]>(decodeSize);
+        decodeSize = RTech::OodleDecompress(cmpBuf.get(), compressedDataSize, data.get(), decodeSize);
 
         if (decodeSize == 0 || data.get() == nullptr)
         {
@@ -412,10 +427,10 @@ const bool CPakFile::DecompressFileBuffer(const char* fileBuffer, std::shared_pt
         //assertm(decodeSize == header->dcmpSize, "mismatch on decode size.");
 
         // copy pak header to the decompressed buffer
-        MEMCPY_S(dcmpBuf.get(), header->pakHdrSize, fileBuffer, header->pakHdrSize);
+        memcpy_s(dcmpBuf.get(), header->pakHdrSize, fileBuffer, header->pakHdrSize);
 
         // copy all of the decoded data into the decompressed buffer
-        MEMCPY_S(dcmpBuf.get() + header->pakHdrSize, header->dcmpSize, data.get(), decodeSize);
+        memcpy_s(dcmpBuf.get() + header->pakHdrSize, header->dcmpSize, data.get(), decodeSize);
 
         // release the oodle decomp buffer now we are done with it
         data.release();
@@ -506,7 +521,7 @@ void CPakFile::AllocateSegments()
         // This data will be aligned to the highest alignment of any contained page data, as all other data will then be able
         // to align themselves within this alignment.
         // Since all alignments must be a power of 2, data with smaller alignments will always be aligned when the alignment is greater.
-        collection->buffer = reinterpret_cast<char*>(aligned_malloc_compat(collection->dataSize, collection->dataAlignment));
+        collection->buffer = reinterpret_cast<char*>(_aligned_malloc(collection->dataSize, collection->dataAlignment));
     }
 
     this->pageBuffers.resize(this->pageCount());
@@ -692,14 +707,61 @@ static std::unordered_map<AssetType_t, std::string> s_ParsedPrefixes(63);
 
 
 #include "PakLoading/texture.h"
+#include <Windows.h>
+
+// SEH wrapper — must not live in a function with C++ objects that need unwind.
+static void SafeLoadImageFromUiia(UIImageAssetHeader_v2_t* hdr, UIImageAssetData_v2_t* cpu, uint64_t guid,
+    const void* hqData, size_t hqSize)
+{
+    __try {
+        loadImageFromUiia(hdr, cpu, guid, hqData, hqSize);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        printf("[SERE] UIIA AV skipped guid=0x%llX\n", (unsigned long long)guid);
+        fflush(stdout);
+    }
+}
+
+// Pull HQ uiia bytes from starpak (pc_all.starpak). Outer C++ — not SEH-safe.
+static std::unique_ptr<char[]> LoadUiiaHqFromStarPak(CPakAsset& asset, UIImageAssetHeader_v2_t* hdr, size_t& outSize)
+{
+    outSize = 0;
+    if (!hdr || asset.starpakOffset() == -1)
+        return nullptr;
+
+    const AssetPtr_t entry = asset.getStarPakStreamEntry(false);
+    if (!entry.size || !entry.offset)
+        return nullptr;
+
+    std::unique_ptr<char[]> buf = asset.getStarPakData(entry.offset, entry.size, false);
+    if (!buf)
+        return nullptr;
+
+    uint64_t bufSize = entry.size;
+    const eCompressionType ct = static_cast<eCompressionType>(hdr->imgFlags.compressionType);
+    if (ct != eCompressionType::NONE) {
+        buf = RTech::DecompressStreamedBuffer(std::move(buf), bufSize, ct);
+        if (!buf)
+            return nullptr;
+    }
+    outSize = static_cast<size_t>(bufSize);
+    return buf;
+}
 
 void CPakFile::ProcessAssets()
 {
-
+    int uimgCount = 0, uiiaCount = 0, fontCount = 0;
+    int uiiaHqOk = 0, uiiaHqMiss = 0;
     for (int i = 0; i < assetCount(); i++) {
         if (m_pAssetsInternal[i].type == (uint32_t)AssetType_t::UIMG) {
+            uimgCount++;
             CPakAsset asset{this,&m_pAssetsInternal[i],""};
+            printf("[SERE] UIMG asset #%d: version=%d headerSize=%u (expected=%zu) guid=0x%llX\n",
+                uimgCount, m_pAssetsInternal[i].version, m_pAssetsInternal[i].headerStructSize,
+                sizeof(UIImageAtlasAssetHeader_v10_t), m_pAssetsInternal[i].guid);
             UIImageAtlasAssetHeader_v10_t* hdr = (UIImageAtlasAssetHeader_v10_t*)asset.header();
+            printf("[SERE]   textureCount=%d textureNames=%p textureHashes=%p\n",
+                hdr->textureCount, (void*)hdr->textureNames, (void*)hdr->textureHashes);
             size_t textureId = ~0LL;
             for (int j = 0; j < assetCount(); j++) {
                 if (m_pAssetsInternal[j].guid == hdr->atlasGUID) {
@@ -711,28 +773,70 @@ void CPakFile::ProcessAssets()
                 continue;
             loadImageAtlasFromRpak(hdr,(ShaderSizeData_t*)asset.cpu(),textureId);
         }
+        else if (m_pAssetsInternal[i].type == (uint32_t)AssetType_t::UIIA) {
+            // S21 image surface: uiia@v2 (no uimg in ui.rpak).
+            uiiaCount++;
+            CPakAsset asset{ this, &m_pAssetsInternal[i], "" };
+            if (m_pAssetsInternal[i].version != 2) {
+                continue;
+            }
+            auto* hdr = reinterpret_cast<UIImageAssetHeader_v2_t*>(asset.header());
+            auto* cpu = reinterpret_cast<UIImageAssetData_v2_t*>(asset.cpu());
+            if (!hdr || !cpu)
+                continue;
+
+            // HQ lives in pc_all.starpak — permanent rpak pages only have LQ.
+            size_t hqSize = 0;
+            std::unique_ptr<char[]> hqBuf = LoadUiiaHqFromStarPak(asset, hdr, hqSize);
+            if (hqBuf && hqSize)
+                uiiaHqOk++;
+            else
+                uiiaHqMiss++;
+
+            SafeLoadImageFromUiia(hdr, cpu, m_pAssetsInternal[i].guid, hqBuf.get(), hqSize);
+        }
         else if (m_pAssetsInternal[i].type == (uint32_t)AssetType_t::FONT) {
+            fontCount++;
             CPakAsset asset{this,&m_pAssetsInternal[i],""};
-            UIFontAtlasAssetHeader_v6_t* hdr = (UIFontAtlasAssetHeader_v6_t*)asset.header();
+            const int fontVer = m_pAssetsInternal[i].version;
+            uint64_t atlasGuid = 0;
+            if (fontVer >= 12) {
+                auto* hdr12 = reinterpret_cast<UIFontAtlasAssetHeader_v12_t*>(asset.header());
+                atlasGuid = hdr12->atlasGUID;
+            } else {
+                auto* hdr6 = reinterpret_cast<UIFontAtlasAssetHeader_v6_t*>(asset.header());
+                atlasGuid = hdr6->atlasGUID;
+            }
             size_t textureId = ~0LL;
             for (int j = 0; j < assetCount(); j++) {
-                if (m_pAssetsInternal[j].guid == hdr->atlasGUID) {
-                    CPakAsset asset{ this, &m_pAssetsInternal[j], "" };
-
-                    textureId = LoadTextureAsset(asset);
+                if (m_pAssetsInternal[j].guid == atlasGuid) {
+                    CPakAsset texAsset{ this, &m_pAssetsInternal[j], "" };
+                    textureId = LoadTextureAsset(texAsset);
                 }
             }
             if(textureId==~0LL)
                 continue;
-            loadRpakFont(hdr,textureId);
+            if (fontVer >= 12) {
+                auto* hdr12 = reinterpret_cast<UIFontAtlasAssetHeader_v12_t*>(asset.header());
+                loadRpakFontV12(hdr12, textureId);
+            } else {
+                auto* hdr6 = reinterpret_cast<UIFontAtlasAssetHeader_v6_t*>(asset.header());
+                loadRpakFont(hdr6, textureId);
+            }
         }
     }
-    
+    printf("[SERE] ProcessAssets: found %d UIMG, %d UIIA, %d FONT (hq starpak %d, miss %d)\n",
+        uimgCount, uiiaCount, fontCount, uiiaHqOk, uiiaHqMiss); fflush(stdout);
 
 }
 
 
 void LoadRpak(const std::filesystem::path& path) {
+    printf("[SERE] Loading rpak: %s\n", path.string().c_str()); fflush(stdout);
     CPakFile file;
-    file.ParseFileBuffer(path);
+    if (!file.ParseFileBuffer(path)) {
+        printf("[SERE] ERROR: Failed to parse %s\n", path.filename().string().c_str()); fflush(stdout);
+        return;
+    }
+    printf("[SERE] Loaded %s - %d assets, processing...\n", path.filename().string().c_str(), file.assetCount()); fflush(stdout);
 }
