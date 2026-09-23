@@ -2,7 +2,7 @@
 
 Node editor for authoring Respawn RUI assets.
 
-Agents view included: CLAUDE.md
+Agents view included: AGENTS.md
 
 ## What this fork adds
 
