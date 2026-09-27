@@ -5,6 +5,7 @@
 
 #include "Util.h"
 #include <fstream>
+#include <set>
 
 #include "Nodes/ArgumentNodes.h"
 #include "Nodes/TransformNodes.h"
@@ -106,29 +107,63 @@ void NodeEditor::SerializeToPath(const fs::path& path) {
 	outFile.close();
 }
 
-void NodeEditor::DeserializeFromPath(const fs::path& path) {
+bool NodeEditor::DeserializeFromPath(const fs::path& path, std::string& error) {
 	printf("[SERE] Open graph: %s\n", path.string().c_str()); fflush(stdout);
 	std::ifstream file(path);
 	if (!file.is_open()) {
-		printf("Error Opening JSON File %s\n", path.string().c_str());
-		return;
+		error = "cannot open " + path.string();
+		return false;
 	}
 	rapidjson::IStreamWrapper wrap(file);
 	rapidjson::Document doc;
 	doc.ParseStream(wrap);
 	if (doc.HasParseError()) {
-		printf("Error in JSON File %s\n", path.string().c_str());
-		return;
+		error = "JSON parse error at offset " + std::to_string(doc.GetErrorOffset()) + " in " + path.string();
+		return false;
 	}
-	DeserializeDocument(doc);
+	return DeserializeDocument(doc, error);
 }
 
-void NodeEditor::DeserializeDocument(rapidjson::Document& doc) {
+// Runs before Clear(): a rejected graph must leave the open one untouched.
+bool NodeEditor::ValidateDocument(rapidjson::Document& doc, std::string& error) {
+	if (!doc.IsObject()) { error = "root is not an object"; return false; }
+	if (!(doc.HasMember("Nodes") && doc["Nodes"].IsArray())) { error = "missing 'Nodes' array"; return false; }
+	if (!(doc.HasMember("Links") && doc["Links"].IsArray())) { error = "missing 'Links' array"; return false; }
+
+	// ImNodeFlow keys nodes by Id and silently replaces on a repeat, which rewires
+	// every link into that Id against a different node type.
+	std::set<uint64_t> ids;
+	size_t index = 0;
+	for (auto& v : doc["Nodes"].GetArray()) {
+		const std::string where = "node #" + std::to_string(index++);
+		if (!v.IsObject()) { error = where + " is not an object"; return false; }
+		if (!(v.HasMember("Id") && v["Id"].IsUint64())) { error = where + " has no integer 'Id'"; return false; }
+		if (!(v.HasMember("Name") && v["Name"].IsString() && v.HasMember("Category") && v["Category"].IsString())) {
+			error = where + " needs 'Name' and 'Category'";
+			return false;
+		}
+		const std::string category = v["Category"].GetString();
+		const std::string name = v["Name"].GetString();
+		if (!nodeTypes.contains(category) || !nodeTypes[category].contains(name)) {
+			error = where + " is an unknown node type " + category + "/" + name;
+			return false;
+		}
+		if (!ids.insert(v["Id"].GetUint64()).second) {
+			error = where + " repeats Id " + std::to_string(v["Id"].GetUint64());
+			return false;
+		}
+	}
+	return true;
+}
+
+bool NodeEditor::DeserializeDocument(rapidjson::Document& doc, std::string& error) {
+	if (!ValidateDocument(doc, error)) {
+		printf("[SERE] graph rejected: %s\n", error.c_str()); fflush(stdout);
+		return false;
+	}
 	Clear();
 
 	rapidjson::GenericObject root = doc.GetObject();
-	if (!(root.HasMember("Nodes") && root["Nodes"].IsArray())) return;
-	if (!(root.HasMember("Links") && root["Links"].IsArray())) return;
 
 	if (root.HasMember("RuiWidth") && root["RuiWidth"].IsNumber() &&
 		root.HasMember("RuiHeight") && root["RuiHeight"].IsNumber()) {
@@ -141,6 +176,7 @@ void NodeEditor::DeserializeDocument(rapidjson::Document& doc) {
 		}
 	}
 	rapidjson::GenericArray nodes = root["Nodes"].GetArray();
+	const int declared = (int)nodes.Size();
 	int nodeCount = 0;
 	for (auto itr = nodes.Begin(); itr != nodes.End(); itr++) {
 		if (!itr->IsObject()) continue;
@@ -185,6 +221,11 @@ void NodeEditor::DeserializeDocument(rapidjson::Document& doc) {
 		linkCount++;
 	}
 	printf("[SERE] Open OK: nodes=%d links=%d\n", nodeCount, linkCount); fflush(stdout);
+	if (nodeCount != declared) {
+		error = std::to_string(declared - nodeCount) + " of " + std::to_string(declared) + " nodes failed to build";
+		return false;
+	}
+	return true;
 }
 
 void NodeEditor::Save() {
@@ -210,7 +251,9 @@ void NodeEditor::Load() {
 		NFD::UniquePath nfdPath;
 		if (NFD::OpenDialog(nfdPath, &filter, 1) != NFD_OKAY) return;
 		m_currentFilePath = nfdPath.get();
-		DeserializeFromPath(m_currentFilePath);
+		std::string error;
+		if (!DeserializeFromPath(m_currentFilePath, error))
+			printf("[SERE] open failed: %s\n", error.c_str());
 		m_dirty = false;
 	};
 	if (m_dirty) {
@@ -273,8 +316,14 @@ void NodeEditor::Export() {
 	fs::path path (nfdPath.get());
 	std::string name = path.filename().replace_extension("").string();
 	RuiExportPrototype proto(render,name);
-	proto.Generate(mINF.getNodes(),render);
 	NFD::Guard nfdGuard;
+	try {
+		proto.Generate(mINF.getNodes(),render);
+	} catch (const std::exception& e) {
+		exportPopupMessage = std::string("Export refused: ") + e.what();
+		showExportPopup = true;
+		return;
+	}
 
 	proto.WriteToFile(path);
 
@@ -300,15 +349,18 @@ bool NodeEditor::DeserializeFromString(const std::string& json, std::string& err
 		error = "root is not an object";
 		return false;
 	}
-	DeserializeDocument(doc);
+	if (!DeserializeDocument(doc, error))
+		return false;
 	m_dirty = true;
 	return true;
 }
 
-void NodeEditor::LoadFromPath(const fs::path& path) {
+bool NodeEditor::LoadFromPath(const fs::path& path, std::string& error) {
+	if (!DeserializeFromPath(path, error))
+		return false;
 	m_currentFilePath = path.string();
-	DeserializeFromPath(path);
 	m_dirty = false;
+	return true;
 }
 
 void NodeEditor::SaveToPath(const fs::path& path) {
@@ -317,7 +369,7 @@ void NodeEditor::SaveToPath(const fs::path& path) {
 	m_dirty = false;
 }
 
-std::string NodeEditor::ExportToPath(const fs::path& path) {
+std::string NodeEditor::ExportToPath(const fs::path& path, bool deploy) {
 	std::string name = fs::path(path).filename().replace_extension("").string();
 	RuiExportPrototype proto(render, name);
 	proto.Generate(mINF.getNodes(), render);
@@ -327,7 +379,7 @@ std::string NodeEditor::ExportToPath(const fs::path& path) {
 	cppPath.replace_extension("cpp");
 	std::string message = "Exported: " + path.string() + " | " + cppPath.string();
 
-	if (settings && settings->GetAutoDeploy()) {
+	if (deploy && settings && settings->GetAutoDeploy()) {
 		BuildAndDeploy(path.parent_path(), name);
 		message += " | deployed " + name + ".rpak";
 	}

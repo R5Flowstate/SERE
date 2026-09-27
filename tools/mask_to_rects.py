@@ -78,7 +78,7 @@ def grow_interior_edges(rects, mask, overlap=1):
     opaque. One pixel of overlap is often not enough: a RUI drawn into a smaller
     panel is downscaled, so an authored pixel is less than a screen pixel while
     the fade is not. Grow a pixel at a time, and only while every pixel beyond
-    the edge is still inside the mask -- the outer silhouette then stays exactly
+    the edge is still inside the mask, so the outer silhouette stays exactly
     where it was painted, however large `overlap` gets.
     """
     h, w = mask.shape
@@ -102,7 +102,7 @@ def grow_interior_edges(rects, mask, overlap=1):
 def decompose(mask, coverage=0.995, max_rects=64):
     total = int(mask.sum())
     if not total:
-        raise SystemExit('mask is empty -- nothing painted')
+        raise SystemExit('mask is empty, nothing painted')
     remaining = mask.copy()
     rects, covered = [], 0
     while covered / total < coverage and len(rects) < max_rects:

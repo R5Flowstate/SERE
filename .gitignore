@@ -366,3 +366,4 @@ FodyWeavers.xsd
 /docs/FEATURE_PROPOSALS.md
 /docs/RUI_TRANSFORM_REFERENCE.md
 /examples
+tools/sere_paths.json

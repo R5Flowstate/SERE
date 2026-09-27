@@ -368,6 +368,9 @@ AssetVarNode::AssetVarNode(RenderInstance& rend,ImFlow::StyleManager& style, rap
 	hash = loadAsset("white");
 	if (obj.HasMember("AssetName") && obj["AssetName"].IsString()) {
 		hash = loadAsset(obj["AssetName"].GetString());
+		if (hash == INVALID_ASSET || !imageAssetMap.contains(hash)
+			|| imageAssetMap.at(hash).name != obj["AssetName"].GetString())
+			unresolvedName = obj["AssetName"].GetString();
 	}
 	
 }
@@ -387,8 +390,8 @@ void AssetVarNode::draw() {
 void AssetVarNode::Serialize(rapidjson::GenericValue<rapidjson::UTF8<>>& obj, rapidjson::Document::AllocatorType& allocator) {
 	obj.AddMember("Name",name,allocator);
 	obj.AddMember("Category",category,allocator);
-	std::string assetName;
-	if (hash != INVALID_ASSET && imageAssetMap.contains(hash))
+	std::string assetName = unresolvedName;
+	if (assetName.empty() && hash != INVALID_ASSET && imageAssetMap.contains(hash))
 		assetName = imageAssetMap.at(hash).name;
 	obj.AddMember("AssetName", rapidjson::Value(assetName.c_str(), allocator), allocator);
 	RuiBaseNode::Serialize(obj,allocator);
@@ -402,8 +405,8 @@ void AssetVarNode::Export(RuiExportPrototype& proto) {
 	ele.sourceNodeName = typeid(*this).name();
 #endif
 	ele.identifier = out.name;
-	std::string assetName;
-	if (hash != INVALID_ASSET && imageAssetMap.contains(hash))
+	std::string assetName = unresolvedName;
+	if (assetName.empty() && hash != INVALID_ASSET && imageAssetMap.contains(hash))
 		assetName = imageAssetMap.at(hash).name;
 	if (assetName.starts_with("0x") || assetName.starts_with("0X")) {
 		printf("WARNING: Asset '%s' has no resolvable name - image won't display in-game. Atlas JSON needs 'name' fields.\n", assetName.c_str());

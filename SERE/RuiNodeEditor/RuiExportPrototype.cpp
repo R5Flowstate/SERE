@@ -1,4 +1,5 @@
 #include "RuiNodeEditor/RuiExportPrototype.h"
+#include <stdexcept>
 
 
 RuiExportPrototype::RuiExportPrototype(const RenderInstance& inst,const std::string& name):size(inst.elementWidth,inst.elementHeight),name(name) {
@@ -304,27 +305,35 @@ void RuiExportPrototype::GenerateArguments() {
 	cluster.renderJobCount = renderJobCount;
 	while (cluster.argCount < arguments.size())cluster.argCount *= 2;
 
-	for (int add = 0; add < 256; add++) {
-		bool success = true;
-		for (int mul = 1; mul < 256; mul++) {
-			success = true;
-			std::vector<bool> argSlots(cluster.argCount, false);
-			for (auto& [name,type] : arguments) {
-				uint32_t argIndex = calculateShortHash(name.c_str(), mul, add) & (cluster.argCount - 1);
-				if (argSlots[argIndex]) {
-					success = false;
-					break;
+	// The engine lookup is one slot per name with no probing, so the table
+	// needs a collision-free (scale, bias) pair. Grow the table until one
+	// exists; a silent miss here means RuiSet* lands on the wrong arg.
+	bool success = false;
+	for (; !success && cluster.argCount <= kMaxArgTableSize; cluster.argCount *= 2) {
+		for (int add = 0; add < 256 && !success; add++) {
+			for (int mul = 1; mul < 256 && !success; mul++) {
+				std::vector<bool> argSlots(cluster.argCount, false);
+				bool ok = true;
+				for (auto& [name,type] : arguments) {
+					uint32_t argIndex = calculateShortHash(name.c_str(), mul, add) & (cluster.argCount - 1);
+					if (argSlots[argIndex]) {
+						ok = false;
+						break;
+					}
+					argSlots[argIndex] = true;
 				}
-				argSlots[argIndex] = true;
-			}
-			if (success) {
-				cluster.byte_4 = mul;
-				cluster.byte_5 = add;
-				break;
+				if (ok) {
+					cluster.byte_4 = mul;
+					cluster.byte_5 = add;
+					success = true;
+				}
 			}
 		}
-		if(success)break;
+		if (success) break;
 	}
+	if (!success)
+		throw std::runtime_error(std::format("no collision-free arg hash for {} args (table cap {})", arguments.size(), kMaxArgTableSize));
+	printf("[SERE] arg hash: %zu args, table %u, scale %u bias %u\n", arguments.size(), cluster.argCount, cluster.byte_4, cluster.byte_5);
 	exportArgs.resize(cluster.argCount);
 	for (auto& [name, type] : arguments) {
 		uint32_t hash = calculateShortHash(name.c_str(),cluster.byte_4,cluster.byte_5);
@@ -566,6 +575,13 @@ void RuiExportPrototype::Generate(std::unordered_map<ImFlow::NodeUID, std::share
 	GenerateVariables(render.arguments);
 	GenerateTransformData();
 	GenerateRenderJobData();
+	// The engine's per-instance update cache holds 243 transforms (3 built-in
+	// roots + 240) and its widget budget is 220. Past those, transform sizes
+	// stomp the root transforms and the RUI draws nothing, with no error.
+	if (transformIndices.size() > kMaxTransformsPerUi)
+		throw std::runtime_error(std::format("{} transforms exceeds the engine cap of {}", transformIndices.size(), kMaxTransformsPerUi));
+	if (renderJobCount > kMaxWidgetsPerUi)
+		throw std::runtime_error(std::format("{} widgets exceeds the engine cap of {}", renderJobCount, kMaxWidgetsPerUi));
 	GenerateArguments();
 	GenerateCodeStruct();
 	GenerateCode();

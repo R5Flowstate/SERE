@@ -4,6 +4,7 @@
 #include <vector>
 #include "Bridge/ControlServer.h"
 #include <fstream>
+#include <filesystem>
 #include <streambuf>
 #include <execution>
 
@@ -30,6 +31,40 @@
 
 #include "Settings.h"
 #include "PakLoading/cpakfile.h"
+
+#include <DbgHelp.h>
+#pragma comment(lib, "dbghelp.lib")
+
+namespace
+{
+    std::filesystem::path ExeDir()
+    {
+        char exe[MAX_PATH]{};
+        GetModuleFileNameA(nullptr, exe, MAX_PATH);
+        return std::filesystem::path(exe).parent_path();
+    }
+
+    LONG WINAPI WriteCrashDump(EXCEPTION_POINTERS* info)
+    {
+        SYSTEMTIME t;
+        GetLocalTime(&t);
+        char name[64];
+        snprintf(name, sizeof(name), "sere_crash_%04d%02d%02d_%02d%02d%02d.dmp",
+            t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
+        std::filesystem::path path = ExeDir() / name;
+        HANDLE file = CreateFileA(path.string().c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (file != INVALID_HANDLE_VALUE) {
+            MINIDUMP_EXCEPTION_INFORMATION mei{ GetCurrentThreadId(), info, FALSE };
+            MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), file,
+                (MINIDUMP_TYPE)(MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithThreadInfo), &mei, nullptr, nullptr);
+            CloseHandle(file);
+        }
+        printf("[SERE] CRASH code=0x%08lX at %p -> %s\n", info->ExceptionRecord->ExceptionCode,
+            info->ExceptionRecord->ExceptionAddress, path.string().c_str());
+        fflush(stdout);
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+}
 
 
 
@@ -212,9 +247,15 @@ void ReloadAssets(std::string folderPath) {
 // Main code
 int main(int argc, char** argv)
 {
-    // Redirect stdout to log file so we can see output even on crash
-    freopen("sere_log.txt", "w", stdout);
-    setvbuf(stdout, NULL, _IONBF, 0); // unbuffered - every write goes to disk immediately
+    // stdout goes next to the exe; the previous run's log survives one relaunch.
+    {
+        std::error_code ec;
+        const std::filesystem::path log = ExeDir() / "sere_log.txt";
+        std::filesystem::rename(log, ExeDir() / "sere_log.prev.txt", ec);
+        freopen(log.string().c_str(), "w", stdout);
+        setvbuf(stdout, NULL, _IONBF, 0); // unbuffered - every write goes to disk immediately
+    }
+    SetUnhandledExceptionFilter(WriteCrashDump);
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -362,8 +403,9 @@ int main(int argc, char** argv)
     while (g_renderFramework->ShouldMainLoopRun())
     {
 
-        // Handle window being minimized or screen locked
-        if (!g_renderFramework->ImGuiStartFrame()) {
+        // Minimised, covered or locked: idle, unless a bridge caller is waiting on this thread.
+        if (!g_renderFramework->ImGuiStartFrame() && !SereBridge::HasPending()) {
+            SereBridge::Heartbeat();
             continue;
         }
 

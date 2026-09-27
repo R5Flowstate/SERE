@@ -37,8 +37,9 @@ private:
 
 	void BuildAndDeploy(const fs::path& exportDir, const std::string& name);
 	void SerializeToPath(const fs::path& path);
-	void DeserializeFromPath(const fs::path& path);
-	void DeserializeDocument(rapidjson::Document& doc);
+	bool DeserializeFromPath(const fs::path& path, std::string& error);
+	bool ValidateDocument(rapidjson::Document& doc, std::string& error);
+	bool DeserializeDocument(rapidjson::Document& doc, std::string& error);
 public:
 	NodeEditor(RenderInstance& rend);
 	void SetSettings(Settings* s) { settings = s; }
@@ -62,9 +63,9 @@ public:
 	// the main thread; nothing here may be called from the socket thread.
 	std::string SerializeToString();
 	bool DeserializeFromString(const std::string& json, std::string& error);
-	void LoadFromPath(const fs::path& path);
+	bool LoadFromPath(const fs::path& path, std::string& error);
 	void SaveToPath(const fs::path& path);
-	std::string ExportToPath(const fs::path& path);
+	std::string ExportToPath(const fs::path& path, bool deploy);
 	std::string CurrentFilePath() const { return m_currentFilePath; }
 	size_t NodeCount() { return mINF.getNodesCount(); }
 

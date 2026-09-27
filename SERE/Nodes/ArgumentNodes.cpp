@@ -304,7 +304,7 @@ ColorArgNode::ColorArgNode(RenderInstance& rend,ImFlow::StyleManager& style):Rui
 
 	getOut<ColorVariable>("Value")->behaviour([this]() {
 		Color val(1.f,1.f,1.f,1.f);
-		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(int)))
+		if(render.arguments.contains(argName) && (render.arguments[argName].type()==typeid(Color)))
 			val = std::any_cast<Color>(render.arguments[argName]);
 		return ColorVariable(
 			val,

@@ -5,7 +5,12 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
+#include <cstdarg>
+#include <cstdio>
+#include <share.h>
+#include <memory>
 #include <deque>
 #include <filesystem>
 #include <fstream>
@@ -31,6 +36,8 @@ namespace SereBridge
 {
 namespace
 {
+	// Shared with the main thread: a request the socket side gave up on may still
+	// be mid-handler, so its lifetime cannot be the socket thread's stack frame.
 	struct Request
 	{
 		std::string method;
@@ -38,6 +45,7 @@ namespace
 		std::string response;        // raw JSON object, filled on the main thread
 		bool done = false;
 	};
+	using RequestPtr = std::shared_ptr<Request>;
 
 	Context           g_ctx;
 	std::atomic<bool> g_running{ false };
@@ -47,7 +55,49 @@ namespace
 
 	std::mutex                    g_mutex;
 	std::condition_variable       g_cv;
-	std::deque<Request*>          g_queue;
+	std::deque<RequestPtr>        g_queue;
+
+	// Answered from the socket thread so a stalled editor can still say what it is stuck on.
+	std::mutex        g_statusMutex;
+	std::string       g_busyMethod;
+	std::string       g_cachedFile;
+	std::atomic<int>  g_cachedNodes{ 0 };
+	std::atomic<long long> g_lastPumpMs{ 0 };
+	std::atomic<long long> g_busySinceMs{ 0 };
+
+	constexpr int kSocketTimeoutMs = 15000;
+	constexpr long long kStallMs = 5000;
+
+	long long NowMs()
+	{
+		using namespace std::chrono;
+		return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+	}
+
+	int MethodTimeoutSec(const std::string& method)
+	{
+		return method == "export" ? 600 : 120;
+	}
+
+	void Log(const char* fmt, ...)
+	{
+		static std::mutex logMutex;
+		static FILE* file = nullptr;
+		std::lock_guard<std::mutex> lock(logMutex);
+		if (!file) {
+			char exe[MAX_PATH]{};
+			GetModuleFileNameA(nullptr, exe, MAX_PATH);
+			fs::path path = fs::path(exe).parent_path() / "sere_bridge.log";
+			file = _fsopen(path.string().c_str(), "a", _SH_DENYWR);
+			if (!file) return;
+		}
+		va_list args;
+		va_start(args, fmt);
+		vfprintf(file, fmt, args);
+		va_end(args);
+		fputc('\n', file);
+		fflush(file);
+	}
 
 	std::string JsonEscape(const std::string& in)
 	{
@@ -108,12 +158,6 @@ namespace
 			return fallback;
 		};
 
-		if (method == "health") {
-			return OkRaw("\"editor\":" + std::string(g_ctx.editor ? "true" : "false") +
-				",\"nodes\":" + std::to_string(g_ctx.editor ? g_ctx.editor->NodeCount() : 0) +
-				",\"file\":" + JsonEscape(g_ctx.editor ? g_ctx.editor->CurrentFilePath() : ""));
-		}
-
 		if (!g_ctx.editor)
 			return Fail("editor not attached");
 
@@ -137,7 +181,9 @@ namespace
 			std::string path = str("path");
 			if (path.empty() || !fs::exists(path))
 				return Fail("no such file: " + path);
-			g_ctx.editor->LoadFromPath(path);
+			std::string error;
+			if (!g_ctx.editor->LoadFromPath(path, error))
+				return Fail(error);
 			return OkRaw("\"nodes\":" + std::to_string(g_ctx.editor->NodeCount()));
 		}
 
@@ -162,6 +208,10 @@ namespace
 				else if (v.IsBool())   g_ctx.render->arguments[name] = v.GetBool();
 				else if (v.IsInt())    g_ctx.render->arguments[name] = v.GetInt();
 				else if (v.IsNumber()) g_ctx.render->arguments[name] = (float)v.GetDouble();
+				else if (v.IsArray() && v.Size() == 2 && v[0].IsNumber() && v[1].IsNumber())
+					g_ctx.render->arguments[name] = Vector2((float)v[0].GetDouble(), (float)v[1].GetDouble());
+				else if (v.IsArray() && v.Size() == 4 && v[0].IsNumber() && v[1].IsNumber() && v[2].IsNumber() && v[3].IsNumber())
+					g_ctx.render->arguments[name] = Color((float)v[0].GetDouble(), (float)v[1].GetDouble(), (float)v[2].GetDouble(), (float)v[3].GetDouble());
 				else continue;
 				count++;
 			}
@@ -217,7 +267,9 @@ namespace
 					: fs::path(g_ctx.editor->CurrentFilePath()).parent_path();
 				path = (dir / (name + ".ruip")).string();
 			}
-			std::string message = g_ctx.editor->ExportToPath(path);
+			// A bridge caller assembles and ships the pak itself; per-graph deploy is opt-in.
+			bool deploy = params.IsObject() && params.HasMember("deploy") && params["deploy"].IsBool() && params["deploy"].GetBool();
+			std::string message = g_ctx.editor->ExportToPath(path, deploy);
 			return OkRaw("\"message\":" + JsonEscape(message));
 		}
 
@@ -288,8 +340,40 @@ namespace
 			send(s, body.c_str(), (int)body.size(), 0);
 	}
 
+	std::string HealthJson()
+	{
+		const long long now = NowMs();
+		const long long lastPump = g_lastPumpMs.load();
+		const long long busySince = g_busySinceMs.load();
+		std::string busy, file;
+		size_t queued = 0;
+		{
+			std::lock_guard<std::mutex> lock(g_statusMutex);
+			busy = g_busyMethod;
+			file = g_cachedFile;
+		}
+		{
+			std::lock_guard<std::mutex> lock(g_mutex);
+			queued = g_queue.size();
+		}
+		const long long sincePump = lastPump ? now - lastPump : -1;
+		const bool stalled = sincePump < 0 || sincePump > kStallMs;
+		return OkRaw("\"editor\":" + std::string(g_ctx.editor ? "true" : "false") +
+			",\"nodes\":" + std::to_string(g_cachedNodes.load()) +
+			",\"file\":" + JsonEscape(file) +
+			",\"stalled\":" + std::string(stalled ? "true" : "false") +
+			",\"msSinceMainThread\":" + std::to_string(sincePump) +
+			",\"busy\":" + JsonEscape(busy) +
+			",\"busyMs\":" + std::to_string(busy.empty() ? 0 : now - busySince) +
+			",\"queued\":" + std::to_string(queued));
+	}
+
 	void ServeOne(SOCKET client)
 	{
+		DWORD timeout = kSocketTimeoutMs;
+		setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+		setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
+
 		std::string raw;
 		size_t headerEnd = std::string::npos;
 		char buf[8192];
@@ -328,34 +412,52 @@ namespace
 			return;
 		}
 
-		Request req;
-		req.method = doc["method"].GetString();
+		const std::string method = doc["method"].GetString();
+		if (method == "health") {
+			SendResponse(client, HealthJson());
+			closesocket(client);
+			return;
+		}
+
+		auto req = std::make_shared<Request>();
+		req->method = method;
 		if (doc.HasMember("params")) {
 			rapidjson::StringBuffer sb;
 			rapidjson::Writer<rapidjson::StringBuffer> w(sb);
 			doc["params"].Accept(w);
-			req.params.assign(sb.GetString(), sb.GetSize());
+			req->params.assign(sb.GetString(), sb.GetSize());
 		} else {
-			req.params = "{}";
+			req->params = "{}";
 		}
 
-		{
-			std::lock_guard<std::mutex> lock(g_mutex);
-			g_queue.push_back(&req);
-		}
+		const long long start = NowMs();
+		std::string response;
 		{
 			std::unique_lock<std::mutex> lock(g_mutex);
-			// A frame that never comes must not wedge the socket thread.
-			g_cv.wait_for(lock, std::chrono::seconds(180), [&] { return req.done; });
-			if (!req.done) {
+			g_queue.push_back(req);
+			const bool finished = g_cv.wait_for(lock, std::chrono::seconds(MethodTimeoutSec(method)),
+				[&] { return req->done; });
+			if (finished) {
+				response = req->response;
+			} else {
+				bool wasQueued = false;
 				for (auto it = g_queue.begin(); it != g_queue.end(); ++it) {
-					if (*it == &req) { g_queue.erase(it); break; }
+					if (*it == req) { g_queue.erase(it); wasQueued = true; break; }
 				}
-				req.response = Fail("timed out waiting for the editor main thread");
+				std::string busy;
+				{
+					std::lock_guard<std::mutex> status(g_statusMutex);
+					busy = g_busyMethod;
+				}
+				response = Fail(wasQueued
+					? "timed out: the editor main thread never picked this up (busy with '" + busy + "')"
+					: "timed out: '" + method + "' is still running on the editor main thread");
 			}
 		}
+		Log("[rpc] %s %lld ms %s", method.c_str(), NowMs() - start,
+			response.compare(0, 10, "{\"ok\":true") == 0 ? "ok" : response.c_str());
 
-		SendResponse(client, req.response);
+		SendResponse(client, response);
 		closesocket(client);
 	}
 
@@ -369,7 +471,8 @@ namespace
 				if (!g_running) break;
 				continue;
 			}
-			ServeOne(client);
+			// One thread per connection: a slow or silent caller must never block health.
+			std::thread(ServeOne, client).detach();
 		}
 	}
 } // namespace
@@ -404,6 +507,7 @@ bool Start(unsigned short port, const Context& ctx)
 	if (bind(g_listen, (sockaddr*)&addr, sizeof(addr)) != 0 ||
 		listen(g_listen, 8) != 0) {
 		printf("[SERE-BRIDGE] bind/listen on 127.0.0.1:%u failed\n", port);
+		Log("[bridge] bind/listen on 127.0.0.1:%u failed (another SERE running?)", port);
 		closesocket(g_listen);
 		g_listen = INVALID_SOCKET;
 		return false;
@@ -412,6 +516,7 @@ bool Start(unsigned short port, const Context& ctx)
 	g_port = port;
 	g_running = true;
 	g_thread = std::thread(ThreadMain);
+	Log("[bridge] listening on 127.0.0.1:%u", port);
 	printf("[SERE-BRIDGE] listening on 127.0.0.1:%u\n", port);
 	fflush(stdout);
 	return true;
@@ -432,32 +537,65 @@ void Stop()
 
 void Pump()
 {
+	g_lastPumpMs = NowMs();
+	if (g_ctx.editor) {
+		g_cachedNodes = g_ctx.editor->NodeCount();
+		std::lock_guard<std::mutex> status(g_statusMutex);
+		g_cachedFile = g_ctx.editor->CurrentFilePath();
+	}
+
 	while (true) {
-		Request* req = nullptr;
+		RequestPtr req;
 		{
 			std::lock_guard<std::mutex> lock(g_mutex);
 			if (g_queue.empty()) return;
 			req = g_queue.front();
 			g_queue.pop_front();
 		}
+		{
+			std::lock_guard<std::mutex> status(g_statusMutex);
+			g_busyMethod = req->method;
+		}
+		g_busySinceMs = NowMs();
 
 		rapidjson::Document params;
 		params.Parse(req->params.c_str(), req->params.size());
 
+		std::string response;
 		try {
-			req->response = Handle(req->method, params);
+			response = Handle(req->method, params);
 		} catch (const std::exception& e) {
-			req->response = Fail(std::string("handler threw: ") + e.what());
+			response = Fail(std::string("handler threw: ") + e.what());
 		} catch (...) {
-			req->response = Fail("handler threw (unknown)");
+			response = Fail("handler threw (unknown)");
 		}
+
+		if (g_ctx.editor) {
+			g_cachedNodes = g_ctx.editor->NodeCount();
+			std::lock_guard<std::mutex> status(g_statusMutex);
+			g_cachedFile = g_ctx.editor->CurrentFilePath();
+			g_busyMethod.clear();
+		}
+		g_lastPumpMs = NowMs();
 
 		{
 			std::lock_guard<std::mutex> lock(g_mutex);
+			req->response = std::move(response);
 			req->done = true;
 		}
 		g_cv.notify_all();
 	}
+}
+
+void Heartbeat()
+{
+	g_lastPumpMs = NowMs();
+}
+
+bool HasPending()
+{
+	std::lock_guard<std::mutex> lock(g_mutex);
+	return !g_queue.empty();
 }
 
 unsigned short BoundPort() { return g_port; }

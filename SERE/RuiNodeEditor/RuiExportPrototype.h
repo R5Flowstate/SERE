@@ -161,6 +161,11 @@ struct ExportRenderJob {
 	std::function<void(RuiExportPrototype&)> func;
 };
 
+// UI_MAX_TRANSFORMS_PER_UI (240 + the 3 built-in roots) and UI_MAX_WIDGETS_PER_UI.
+constexpr size_t kMaxTransformsPerUi = 243;
+constexpr size_t kMaxWidgetsPerUi = 220;
+constexpr uint32_t kMaxArgTableSize = 4096;
+
 struct RuiExportPrototype {
 
 

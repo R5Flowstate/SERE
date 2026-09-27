@@ -147,6 +147,7 @@ public:
 private:
 	uint32_t hash;
 	bool showSelectionUi;
+	std::string unresolvedName;   // a name the loaded paks do not carry (custom pak art); exported verbatim
 };
 
 // Feeds an image slot the engine sentinel -4 (UI_IMGREFIDX_SCREENBLUR), which makes

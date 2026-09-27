@@ -52,19 +52,33 @@ def build(js):
     put("styleDescriptor", hexes["styleDescriptorsHex"])
     put("renderJob", hexes["renderJobsHex"])
     put("transformData", hexes["transformDataHex"])
+    # String defaults live in defaultValues and point into the string blob after it.
+    # The source pak's fixup offsets are page-relative and do not reliably land on
+    # each argument's string, so rebuild the blob from the decoded values instead.
+    fixups = [f for f in js.get("pointerFixups", []) if f.get("srcSection") != "header"]
+    argByOffset = {a["dataOffset"]: a for a in js["args"]}
+    strings = bytearray()
+    placed = {}
+    packed = b""
+    for f in fixups:
+        a = argByOffset.get(f["srcOffset"])
+        if a is None:
+            raise SystemExit("%s: string default %s at %d matches no argument"
+                             % (js["name"], f.get("field", "?"), f["srcOffset"]))
+        value = (a.get("stringValue") or "").encode("utf-8")
+        if value not in placed:
+            placed[value] = len(strings)
+            strings += value + b"\0"
+        # The packer adds defaultValues' size back, so the offset is relative to the string blob.
+        packed += struct.pack("<IIII", 1, f["srcOffset"], 1, placed[value])
+    hexes["defaultStringsHex"] = bytes(strings)
+
     put("defaultValues", hexes["defaultValuesHex"])
     put("defaultStringData", hexes["defaultStringsHex"])
     put("keyframing", hexes["keyframingsHex"])
     put("argNames", hexes["argNamesHex"])
     put("rpakPtr", b"")
-
-    # RSX's pointerFixups all target the asset header, and Repak rebuilds every
-    # header pointer itself. Only CPU-blob-internal fixups (string pointers
-    # inside defaultValues) would need forwarding, and this asset has none.
-    fixups = [f for f in js.get("pointerFixups", [])
-              if f.get("srcSection") != "header"]
-    put("pointerFixup", b"".join(
-        struct.pack("<IIII", 1, f["srcOffset"], 1, f["dstCpuOffset"]) for f in fixups))
+    put("pointerFixup", packed)
 
     hdr = struct.pack(
         HDR_FMT,

@@ -1604,8 +1604,8 @@ __m128 GetTextSize(TextInputData& data) {
 						|| v62 <= 63 && ((1 << (v62 - 32)) & 0x80005002) != 0)
 					{
 					LABEL_12:
-						// getFontGlyphIndex used to return -1 on miss → OOB on glyphs[].
-						// Always clamp; sentinel glyph is appended at load for kerning end.
+						// getFontGlyphIndex returns -1 on a miss, so clamp; the sentinel glyph
+						// appended at load ends kerning.
 						static Glyph_t s_emptyGlyph{};
 						if (!a1a || a1a->glyphs.size() < 2) {
 							fontGlyph = &s_emptyGlyph;

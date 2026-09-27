@@ -1,36 +1,23 @@
-# SERE ( R5Flowstate/S21 )
+# SERE (R5Flowstate / S21)
 
-Node editor for authoring Respawn RUI assets.
+**S**implified **E**ditor for **R**ui **E**lements — visual node editor for
+Respawn RUI. This fork targets **Season 21**: export stamps `ruiVersion=42`
+(V42.1 widget sizes) and preview loads S21 `uiia` / font-v12 paks. Upstream
+SERE (RoyalBlue1) targets older RUI / uimg-era paks.
 
-Agents view included: AGENTS.md
+Upstream: [RoyalBlue1/SERE](https://github.com/RoyalBlue1/SERE).
 
 ## What this fork adds
 
-- Targets **ruiVersion 42**: widget table, layout opcodes, transform
-  matrices, style descriptors and string tables all match what the engine
-  reads, rather than the earlier uimg-era layout.
-- 28 global nodes, and Tint / Hue / Saturation / Lightness / Kerning pins on
-  every widget type.
-- Screen blur shaped by a painted mask, plus widget clip pins and
-  per-instance pin prototypes.
-- Live preview against real game art: loads uiia and font atlases straight
-  out of the game's paks, with BC-compressed textures decoded for display.
-- Export builds the RUI pak and its module in one step, so a graph goes from
-  the editor to a loadable asset without a separate packing pass.
-- Sessions, left-click panning, dark theme, and auto-generated RUI headers.
+- Export: `packageVersion=2`, **`ruiVersion=42`**, widget sizes
+  `[28,50,30,30,48,14]`, S16 transform strides.
+- Preview: S21 `uiia` v2 images + font atlas v12 (not uimg).
+- Auto RPak build via RePak after export.
+- Transform / ellipse / asset / style-descriptor layouts fixed for S21.
+- Full `RuiGlobals` emit, 28 global nodes, HSL preview, session system.
 
-## Usage
-
-Set the game path in **Settings** so the editor can load atlases for
-preview. Build a graph, then export to produce the pak and module.
+See `docs/SERE_GUIDE.md` for the editor workflow.
 
 ## Building
 
-```
-git clone --recursive <repo>
-cmake -B build -A x64 && cmake --build build --config Release
-```
-
-`--recursive` matters: the file dialog is a submodule.
-
-Upstream: [RoyalBlue1/SERE](https://github.com/RoyalBlue1/SERE)
+CMake + Visual Studio. Open the generated `SERE` project and build Release.

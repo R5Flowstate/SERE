@@ -232,6 +232,9 @@ public:
 
 
     void StartFrame(float time);
+    // Roots 0..2 must exist before any node is built: every transform node copies
+    // transformResults[2] as its default parent in its constructor.
+    void ResetRootTransforms();
     void EndFrame();
 
     void SetSize(float width, float height) {
@@ -260,6 +263,7 @@ public:
 
     RenderInstance(float width, float height) {
         SetSize(width,height);
+        ResetRootTransforms();
     }
 
     void DrawImage() {

@@ -27,5 +27,12 @@ namespace SereBridge
 	// Drain queued requests. Call once per frame from the main loop.
 	void Pump();
 
+	// True while a request waits for the main thread; the main loop must keep
+	// running full frames (even occluded or minimised) until it is drained.
+	bool HasPending();
+
+	// Main loop is alive but skipping frames (occluded/minimised); keeps health from reading it as stalled.
+	void Heartbeat();
+
 	unsigned short BoundPort();
 }

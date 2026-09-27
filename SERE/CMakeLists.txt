@@ -65,6 +65,8 @@ add_executable (SERE
 
 target_include_directories(SERE PUBLIC CMAKE_CURRENT_SOURCE_DIR )
 target_link_libraries(SERE PUBLIC nfd)
+target_compile_options(SERE PRIVATE $<$<CONFIG:Release>:/Zi>)
+target_link_options(SERE PRIVATE $<$<CONFIG:Release>:/DEBUG /OPT:REF /OPT:ICF>)
 
 add_custom_command(TARGET SERE POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/Assets $<TARGET_FILE_DIR:SERE>/Assets)
 add_custom_command(TARGET SERE POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/Imgui/DroidSans.ttf $<TARGET_FILE_DIR:SERE>/Imgui/DroidSans.ttf)
